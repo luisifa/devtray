@@ -1,0 +1,24 @@
+[Unit]
+Description=devtray —— 托盘常驻的开发服务管理器（tmux 托管）
+Documentation=https://github.com/luisifa/devtray
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# 关键：systemd 的默认 PATH 里没有 ~/.bun/bin 这类用户目录，
+# 而 tmux 会话继承的是这里的环境 —— 不写这行，`bun run dev` 会 exit 127。
+Environment=PATH=%h/.bun/bin:%h/.cargo/bin:%h/.local/bin:%h/.local/share/pnpm/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/lib/jvm/default/bin:/usr/lib/rustup/bin
+ExecStart=%h/.cargo/bin/devtray
+# 用 on-failure 而不是 always：菜单里的「退出」是 exit 0，
+# 用 always 会让你点了退出又被拉起来；只有崩溃（非 0 / 信号）才自动拉起。
+# 关键：默认 KillMode=control-group 会在 restart 时把整个 cgroup 杀光，
+# 连 tmux server（以及你所有 dev server）一起带走 —— 那就违背了「托盘重启不影响服务」。
+KillMode=process
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:%h/.local/state/devtray/service.log
+StandardError=append:%h/.local/state/devtray/service.log
+
+[Install]
+WantedBy=default.target

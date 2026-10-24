@@ -1,0 +1,37 @@
+# Copy into your devtray config and replace cwd with EXISTING directories.
+# 复制到 devtray 配置中，将 cwd 改成本机已经存在的目录。
+# Default / 默认：~/.config/devtray/config.toml
+
+[settings]
+poll_ms = 2000
+notify = true
+notify_debounce_s = 60
+# terminal = "kitty"
+
+[[project]]
+name = "my-app"
+
+[[project.service]]
+name = "backend"
+cwd = "~/Workspace/my-app/backend"
+cmd = "cargo run"
+autostart = false
+# Match your application's actual startup message / 改为实际启动日志中的内容。
+ready = "Listening on"
+# Either ready OR port passing is sufficient / ready 与 port 任意通过即就绪。
+port = 3000
+url = "http://localhost:3000/"
+# log_file = "logs/backend.log"
+[project.service.env]
+RUST_LOG = "debug"
+
+[[project.service]]
+name = "frontend"
+cwd = "~/Workspace/my-app/frontend"
+cmd = "bun run dev"
+autostart = false
+ready = "ready in"
+url = "http://localhost:5173/"
+
+# Add another [[project]] here for another project.
+# 需要另一个项目时，继续添加 [[project]] 及其 [[project.service]]。

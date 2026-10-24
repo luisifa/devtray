@@ -1,0 +1,88 @@
+[package]
+name = "devtray"
+version = "0.1.0"
+edition = "2024"
+description = "Linux tray manager for development services, with tmux, readable logs, and MCP for agents"
+authors = ["ferychen <482261@qq.com>"]
+license = "Proprietary"
+readme = "README.md"
+repository = "https://github.com/luisifa/devtray"
+# 运行时需要 tmux：服务进程都活在 tmux 会话里
+keywords = ["tray", "tmux", "development"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+ksni = { version = "0.3.6", default-features = false, features = ["async-io", "blocking"] }
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+toml = "1.1.6"
+toml_edit = "0.25.15"
+
+# ── 打包（`cargo deb` / `cargo generate-rpm`）────────────────────────────────
+# 两个包的 install 布局必须一致，改一个记得改另一个。
+# 图标从 assets/icons/hicolor/ 取，那份目录与系统 /usr/share/icons/hicolor 结构一一对应，
+# 所以装的路径可以照抄；换图标后先跑 scripts/build-icons.sh。
+
+[package.metadata.deb]
+maintainer = "ferychen <482261@qq.com>"
+copyright = "2026, ferychen"
+section = "utils"
+priority = "optional"
+depends = "$auto, tmux"
+recommends = "libnotify-bin, python3"
+# 不写这个的话 cargo-deb 会把整个 README 当成扩展描述塞进 control 文件
+extended-description = """托盘常驻的开发服务管理器：把 cargo run / bun run dev 这类长跑命令交给 tmux 托管，
+托盘上右键即可看状态、看日志、启停重启，不占终端窗口。
+需要 tmux；桌面控制面板额外需要 Python 3 + PySide6；libnotify-bin 提供失败桌面通知。"""
+assets = [
+    ["target/release/devtray", "usr/bin/", "755"],
+    ["assets/devtray.desktop", "usr/share/applications/", "644"],
+    ["assets/icons/hicolor/scalable/apps/*", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["assets/icons/hicolor/16x16/apps/*", "usr/share/icons/hicolor/16x16/apps/", "644"],
+    ["assets/icons/hicolor/22x22/apps/*", "usr/share/icons/hicolor/22x22/apps/", "644"],
+    ["assets/icons/hicolor/24x24/apps/*", "usr/share/icons/hicolor/24x24/apps/", "644"],
+    ["assets/icons/hicolor/32x32/apps/*", "usr/share/icons/hicolor/32x32/apps/", "644"],
+    ["assets/icons/hicolor/48x48/apps/*", "usr/share/icons/hicolor/48x48/apps/", "644"],
+    ["assets/icons/hicolor/64x64/apps/*", "usr/share/icons/hicolor/64x64/apps/", "644"],
+    ["assets/icons/hicolor/128x128/apps/*", "usr/share/icons/hicolor/128x128/apps/", "644"],
+    ["assets/icons/hicolor/256x256/apps/*", "usr/share/icons/hicolor/256x256/apps/", "644"],
+    ["packaging/devtray.service", "usr/lib/systemd/user/", "644"],
+    ["README.md", "usr/share/doc/devtray/", "644"],
+    ["README.zh-CN.md", "usr/share/doc/devtray/", "644"],
+    ["CHANGELOG*.md", "usr/share/doc/devtray/", "644"],
+    ["Cargo.lock", "usr/share/doc/devtray/", "644"],
+    ["docs/control-panel.md", "usr/share/doc/devtray/docs/", "644"],
+    ["examples/config.toml", "usr/share/doc/devtray/examples/", "644"],
+    ["docs/screenshots/*.png", "usr/share/doc/devtray/docs/screenshots/", "644"],
+]
+
+[package.metadata.generate-rpm]
+license = "Proprietary"
+summary = "托盘常驻的开发服务管理器（tmux 托管）"
+assets = [
+    { source = "target/release/devtray", dest = "/usr/bin/devtray", mode = "755" },
+    { source = "assets/devtray.desktop", dest = "/usr/share/applications/devtray.desktop", mode = "644" },
+    { source = "assets/icons/hicolor/scalable/apps/*", dest = "/usr/share/icons/hicolor/scalable/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/16x16/apps/*", dest = "/usr/share/icons/hicolor/16x16/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/22x22/apps/*", dest = "/usr/share/icons/hicolor/22x22/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/24x24/apps/*", dest = "/usr/share/icons/hicolor/24x24/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/32x32/apps/*", dest = "/usr/share/icons/hicolor/32x32/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/48x48/apps/*", dest = "/usr/share/icons/hicolor/48x48/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/64x64/apps/*", dest = "/usr/share/icons/hicolor/64x64/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/128x128/apps/*", dest = "/usr/share/icons/hicolor/128x128/apps/", mode = "644" },
+    { source = "assets/icons/hicolor/256x256/apps/*", dest = "/usr/share/icons/hicolor/256x256/apps/", mode = "644" },
+    { source = "packaging/devtray.service", dest = "/usr/lib/systemd/user/devtray.service", mode = "644" },
+    { source = "README.md", dest = "/usr/share/doc/devtray/README.md", mode = "644", doc = true },
+    { source = "README.zh-CN.md", dest = "/usr/share/doc/devtray/README.zh-CN.md", mode = "644", doc = true },
+    { source = "CHANGELOG*.md", dest = "/usr/share/doc/devtray/", mode = "644", doc = true },
+    { source = "Cargo.lock", dest = "/usr/share/doc/devtray/Cargo.lock", mode = "644", doc = true },
+    { source = "docs/control-panel.md", dest = "/usr/share/doc/devtray/docs/control-panel.md", mode = "644", doc = true },
+    { source = "examples/config.toml", dest = "/usr/share/doc/devtray/examples/config.toml", mode = "644", doc = true },
+    { source = "docs/screenshots/*.png", dest = "/usr/share/doc/devtray/docs/screenshots/", mode = "644", doc = true },
+]
+
+# 命令类依赖必须手写（rpm 只会自动探测 ELF 共享库，比如 libc）；
+# 注意这个字段是「表」不是数组，写 requires = ["tmux"] 会报类型错误。
+[package.metadata.generate-rpm.requires]
+tmux = "*"

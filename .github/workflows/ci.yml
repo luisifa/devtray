@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux and Qt dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux dbus-x11 python3-venv python3-gi libegl1 libopengl0 libxkbcommon0 fonts-noto-cjk
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install PySide6
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.97.1
+      - name: Check Rust
+        run: |
+          cargo fmt --all -- --check
+          cargo test --locked
+          cargo clippy --locked -- -D warnings
+          cargo build --locked
+      - name: Check CLI, MCP, Qt, tmux, and tray integration
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python3 tests/mcp.py
+          python3 tests/test_panel.py
+          python3 tests/panel_instance.py
+          python3 tests/log_restart.py
+          python3 tests/launch_shortcuts.py
+          dbus-run-session -- python3 tests/tray_context_menu.py
+
+  linux-packages:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          rustup toolchain install 1.97.1 --profile minimal --target x86_64-unknown-linux-musl
+          rustup override set 1.97.1
+          cargo install cargo-deb --version 3.8.0 --locked
+          cargo install cargo-generate-rpm --version 0.21.0 --locked
+      - name: Build Linux packages
+        run: ./scripts/package-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devtray-linux-x86_64
+          path: dist/*
+          if-no-files-found: error

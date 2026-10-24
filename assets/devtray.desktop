@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=devtray
+Name[zh_CN]=devtray 开发服务管理器
+Comment=Tray-resident manager for long-running dev services (tmux-backed)
+Comment[zh_CN]=托盘常驻的开发服务管理器（tmux 托管）
+Exec=devtray panel
+Icon=devtray
+Terminal=false
+Categories=Development;
+Keywords=dev;tmux;service;tray;cargo;vite;
+StartupNotify=false
+StartupWMClass=devtray
+Actions=Tray;
+
+[Desktop Action Tray]
+Name=Start tray
+Name[zh_CN]=启动托盘
+Exec=devtray

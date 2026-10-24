@@ -1,0 +1,23 @@
+# 构建产物瘦身（2026-09-27 定）
+#
+# 背景：dev profile 默认 debug = true（全量 DWARF）+ incremental 按指纹累积。
+# 本仓库 target/ 清理前 2.0 G（debug 1.6 G、release 306 M；incremental 359 M / 10 个会话目录）。
+# 注意：托盘本体跑的是 ~/.cargo/bin/devtray（已安装的 release 二进制），清理本项目 target 不影响它。
+#
+# 实测（同栈探针工程，tokio full + reqwest + serde + regex + chrono + rand，全新 target，rustc 1.97.1）：
+#   debug=2 (true)                target 625 M   可执行 21.5 M   deps rlib 320.0 M   15.9 s
+#   debug=line-tables-only        target 520 M   可执行 12.4 M   deps rlib 224.3 M   13.2 s
+#   debug=0 (false)               target 369 M   可执行  5.6 M   deps rlib 196.7 M   11.4 s
+#
+# 取舍：自己 crate 保留行号表（backtrace 仍有「文件:行号」，但看不到变量/类型），
+#       依赖完全不带调试信息；关掉 incremental。
+# 注意：再改这段 profile 会让现有产物全部失效，需 cargo clean --profile dev 后重编一次。
+#
+# 想还原：删掉下面两个 [profile.*] 段，然后 cargo clean --profile dev && cargo build。
+
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false

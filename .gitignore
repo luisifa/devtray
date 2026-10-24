@@ -1,0 +1,11 @@
+/target
+
+__pycache__/
+*.pyc
+
+# Local configuration, credentials, and generated release artifacts
+.env
+.env.*
+!.env.example
+.venv/
+/dist/

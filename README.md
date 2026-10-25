@@ -21,7 +21,7 @@ Agents often leave development servers in background shells that are awkward to 
 
 Services and log collectors live in tmux. Hiding the panel, quitting the tray, or restarting devtray does not stop them. A reboot or logout that terminates the user's processes still can.
 
-**v0.1.0 targets Linux.** The interface and CLI messages are currently primarily Chinese; these instructions are available in English and Chinese. There is no native macOS or Windows app in this release.
+**v0.1.1 targets Linux.** The interface and CLI messages are currently primarily Chinese; these instructions are available in English and Chinese. There is no native macOS or Windows app in this release.
 
 ## Dependencies
 
@@ -34,7 +34,7 @@ Services and log collectors live in tmux. Hiding the panel, quitting the tray, o
 | `xdg-open` (`xdg-utils`) | Opening preview URLs and project directories |
 | `notify-send` | Optional failure notifications |
 | `yad` | Optional tray/CLI service-editing forms; the Qt panel has its own forms |
-| Rust stable + Cargo + a C linker | Building from source; v0.1.0 was tested with Rust 1.97.1 |
+| Rust stable + Cargo + a C linker | Building from source; v0.1.1 was tested with Rust 1.97.1 |
 | Your project's runtimes and dependencies | Whatever the configured command needs: Rust, Node.js, Bun, Python, etc. |
 
 CLI and MCP service management do not require the tray, Python, or Qt. devtray does not install dependencies for your projects. Rust dependencies are pinned in [Cargo.lock](Cargo.lock); no Node.js frontend or frontend build server is needed. Python UI source and generated tray icons are embedded in the Rust binary.
@@ -94,10 +94,10 @@ Download a matching artifact from [GitHub Releases](https://github.com/luisifa/d
 
 ```bash
 # Debian / Ubuntu: apt also resolves package dependencies
-sudo apt install ./devtray_0.1.0-1_amd64.deb
+sudo apt install ./devtray_0.1.1-1_amd64.deb
 
 # Fedora / RPM-based systems
-sudo dnf install ./devtray-0.1.0-1.x86_64.rpm
+sudo dnf install ./devtray-0.1.1-1.x86_64.rpm
 
 # After installing either package
 mkdir -p "$HOME/.local/state/devtray"
@@ -195,7 +195,7 @@ Targets accept `project/service`, a unique service name, or the tmux session nam
 | `exited_failed` | Process exited with a nonzero code; pane retained |
 | `exited_signal` | Pane records a signal exit |
 
-The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.1.0.
+The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.1.1.
 
 ## Logs you can inspect yourself
 
@@ -272,7 +272,7 @@ Add service definitions in the devtray config or UI; MCP has no add-service tool
 
 ## Build, package, and platform support
 
-| Platform | v0.1.0 support |
+| Platform | v0.1.1 support |
 | --- | --- |
 | Linux x86_64 | Primary tested platform; GNU and musl builds |
 | Linux ARM64 | Source/cross-compilation instructions below; needs validation on the target desktop |
@@ -292,6 +292,8 @@ cargo build --release --locked
 # Packaging helpers (only needed to make packages)
 cargo install cargo-deb --locked
 cargo install cargo-generate-rpm --locked
+rustup component add rust-docs
+python3 scripts/generate-third-party-notices.py --target "$(rustc -vV | sed -n 's/^host: //p')"
 cargo deb --no-build --locked                 # target/debian/
 cargo generate-rpm                          # target/generate-rpm/
 ```
@@ -307,6 +309,8 @@ cargo generate-rpm --target x86_64-unknown-linux-musl
 # Build all release artifacts and SHA256SUMS in dist/
 ./scripts/package-release.sh
 ```
+
+The release packaging notices are reviewed for Rust 1.97.1; use that toolchain to reproduce the packages. Updating the packaging toolchain requires reviewing the musl/LLVM notice snapshots.
 
 A static Rust executable still needs tmux at runtime and Python/Qt for the panel. Generated icons are committed; rebuilding them additionally requires `rsvg-convert` and PySide6 via `scripts/build-icons.sh`.
 
@@ -376,8 +380,12 @@ Then run `systemctl --user daemon-reload` and `systemctl --user restart devtray.
 | `DEVTRAY_PYTHON` | Interpreter for the embedded Qt panels; default `python3` |
 | `TERMINAL` | Preferred terminal when `settings.terminal` is unset |
 
-v0.1.0 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
+v0.1.1 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
 
 ## License
 
-The project currently retains its original `Proprietary` designation. Publishing the repository does not grant an open-source license.
+devtray source code, documentation, and project-created assets are licensed under the [MIT License](LICENSE). Copyright (c) 2026 ferychen.
+
+Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [licenses/](licenses/README.md). The optional PySide6/Qt interface uses LGPLv3 libraries installed separately by the user. This release does not bundle Python, PySide6, or Qt.
+
+Release packages include the project license, dependency notices, applicable Unicode notices, Rust standard-library notices, and musl copyright information. Regenerate the notices after building the target with `python3 scripts/generate-third-party-notices.py --target x86_64-unknown-linux-musl`; the packaging script does this automatically.

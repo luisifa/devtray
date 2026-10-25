@@ -1,10 +1,10 @@
 [package]
 name = "devtray"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Linux tray manager for development services, with tmux, readable logs, and MCP for agents"
 authors = ["ferychen <482261@qq.com>"]
-license = "Proprietary"
+license = "MIT"
 readme = "README.md"
 repository = "https://github.com/luisifa/devtray"
 # 运行时需要 tmux：服务进程都活在 tmux 会话里
@@ -50,6 +50,11 @@ assets = [
     ["packaging/devtray.service", "usr/lib/systemd/user/", "644"],
     ["README.md", "usr/share/doc/devtray/", "644"],
     ["README.zh-CN.md", "usr/share/doc/devtray/", "644"],
+    ["LICENSE", "usr/share/doc/devtray/", "644"],
+    ["THIRD_PARTY_NOTICES.md", "usr/share/doc/devtray/", "644"],
+    ["licenses/*.txt", "usr/share/doc/devtray/licenses/", "644"],
+    ["licenses/README.md", "usr/share/doc/devtray/licenses/", "644"],
+    ["licenses/rust/*", "usr/share/doc/devtray/licenses/rust/", "644"],
     ["CHANGELOG*.md", "usr/share/doc/devtray/", "644"],
     ["Cargo.lock", "usr/share/doc/devtray/", "644"],
     ["docs/control-panel.md", "usr/share/doc/devtray/docs/", "644"],
@@ -58,7 +63,7 @@ assets = [
 ]
 
 [package.metadata.generate-rpm]
-license = "Proprietary"
+license = "MIT"
 summary = "托盘常驻的开发服务管理器（tmux 托管）"
 assets = [
     { source = "target/release/devtray", dest = "/usr/bin/devtray", mode = "755" },
@@ -75,6 +80,12 @@ assets = [
     { source = "packaging/devtray.service", dest = "/usr/lib/systemd/user/devtray.service", mode = "644" },
     { source = "README.md", dest = "/usr/share/doc/devtray/README.md", mode = "644", doc = true },
     { source = "README.zh-CN.md", dest = "/usr/share/doc/devtray/README.zh-CN.md", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/devtray/LICENSE", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/devtray/LICENSE", mode = "644", doc = true },
+    { source = "THIRD_PARTY_NOTICES.md", dest = "/usr/share/doc/devtray/THIRD_PARTY_NOTICES.md", mode = "644", doc = true },
+    { source = "licenses/*.txt", dest = "/usr/share/doc/devtray/licenses/", mode = "644", doc = true },
+    { source = "licenses/README.md", dest = "/usr/share/doc/devtray/licenses/README.md", mode = "644", doc = true },
+    { source = "licenses/rust/*", dest = "/usr/share/doc/devtray/licenses/rust/", mode = "644", doc = true },
     { source = "CHANGELOG*.md", dest = "/usr/share/doc/devtray/", mode = "644", doc = true },
     { source = "Cargo.lock", dest = "/usr/share/doc/devtray/Cargo.lock", mode = "644", doc = true },
     { source = "docs/control-panel.md", dest = "/usr/share/doc/devtray/docs/control-panel.md", mode = "644", doc = true },

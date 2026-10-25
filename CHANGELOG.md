@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 - 2026-10-25
+
+### Licensing and distribution
+- License devtray source code, documentation, and project-created assets under MIT.
+- Include third-party Rust license texts, Unicode notices, Rust standard-library notices, musl copyright information, and LGPLv3/GPLv3 texts for the separately installed Qt runtime.
+- Generate dependency notices for the selected build target and include them in tar, Debian, and RPM packages.
+- Document the license boundary between devtray and external Python/Qt and system tools.
+
 ## 0.1.0 - 2026-10-25
 
 Initial public release: visible development services for developers and AI agents.

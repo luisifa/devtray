@@ -49,13 +49,15 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools
-          rustup toolchain install 1.97.1 --profile minimal --target x86_64-unknown-linux-musl
+          sudo apt-get install -y musl-tools libarchive-tools
+          rustup toolchain install 1.97.1 --profile minimal --component rust-docs --target x86_64-unknown-linux-musl
           rustup override set 1.97.1
           cargo install cargo-deb --version 3.8.0 --locked
           cargo install cargo-generate-rpm --version 0.21.0 --locked
       - name: Build Linux packages
-        run: ./scripts/package-release.sh
+        run: |
+          ./scripts/package-release.sh
+          python3 tests/package_licenses.py
       - uses: actions/upload-artifact@v4
         with:
           name: devtray-linux-x86_64

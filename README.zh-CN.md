@@ -21,7 +21,7 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 
 服务和日志采集器运行在 tmux 中。隐藏面板、退出托盘或重启 devtray，不会停止它们。但系统重启，以及会终止用户进程的注销操作，仍可能结束服务。
 
-**v0.1.0 面向 Linux。** 目前界面与命令行提示主要为中文，README 提供中英文版本；本版本没有原生 macOS／Windows 应用。
+**v0.1.1 面向 Linux。** 目前界面与命令行提示主要为中文，README 提供中英文版本；本版本没有原生 macOS／Windows 应用。
 
 ## 依赖
 
@@ -34,7 +34,7 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 | `xdg-open`（`xdg-utils`） | 打开预览网址和项目目录 |
 | `notify-send` | 可选，用于失败桌面通知 |
 | `yad` | 可选，用于托盘／CLI 的服务编辑表单；Qt 面板自带表单 |
-| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.1.0 本地验证使用 Rust 1.97.1 |
+| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.1.1 本地验证使用 Rust 1.97.1 |
 | 项目自身的运行时和依赖 | 配置命令实际需要的 Rust、Node.js、Bun、Python 等 |
 
 CLI／MCP 服务管理不依赖托盘、Python 或 Qt。devtray 不负责安装业务项目的依赖。Rust 依赖由 [Cargo.lock](Cargo.lock) 固定；没有 Node.js 前端构建步骤，也不需要前端开发服务器。Python 界面源码和生成好的托盘图标内嵌在 Rust 二进制中。
@@ -94,10 +94,10 @@ devtray status --json
 
 ```bash
 # Debian / Ubuntu：apt 会同时处理包依赖
-sudo apt install ./devtray_0.1.0-1_amd64.deb
+sudo apt install ./devtray_0.1.1-1_amd64.deb
 
 # Fedora / RPM 系统
-sudo dnf install ./devtray-0.1.0-1.x86_64.rpm
+sudo dnf install ./devtray-0.1.1-1.x86_64.rpm
 
 # 两种包安装后均执行
 mkdir -p "$HOME/.local/state/devtray"
@@ -195,7 +195,7 @@ devtray help
 | `exited_failed` | 进程以非零码退出，保留终端 pane |
 | `exited_signal` | 保留的 pane 记录为信号退出 |
 
-托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.1.0 尚无持续健康检查或服务崩溃自动重启。
+托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.1.1 尚无持续健康检查或服务崩溃自动重启。
 
 ## 自己查看和排查日志
 
@@ -272,7 +272,7 @@ codex mcp list
 
 ## 构建、打包与跨平台说明
 
-| 平台 | v0.1.0 支持情况 |
+| 平台 | v0.1.1 支持情况 |
 | --- | --- |
 | Linux x86_64 | 主要验证平台；支持 GNU 和 musl 构建 |
 | Linux ARM64 | 提供源码／交叉编译步骤，需在目标桌面实际验证 |
@@ -292,6 +292,8 @@ cargo build --release --locked
 # 仅制作安装包时需要这些打包工具
 cargo install cargo-deb --locked
 cargo install cargo-generate-rpm --locked
+rustup component add rust-docs
+python3 scripts/generate-third-party-notices.py --target "$(rustc -vV | sed -n 's/^host: //p')"
 cargo deb --no-build --locked                 # 输出到 target/debian/
 cargo generate-rpm                          # 输出到 target/generate-rpm/
 ```
@@ -307,6 +309,8 @@ cargo generate-rpm --target x86_64-unknown-linux-musl
 # 生成所有发布产物及 SHA256SUMS，输出到 dist/
 ./scripts/package-release.sh
 ```
+
+发布包的运行库许可快照按 Rust 1.97.1 核查；复现发布包请使用该工具链。升级打包工具链时，需要重新检查 musl／LLVM 的许可快照。
 
 静态 Rust 二进制仍需要运行时的 tmux，以及面板使用的 Python／Qt。已生成的图标随源码提供，普通构建不需要重新生成；修改图标后执行 `scripts/build-icons.sh`，另外需要 `rsvg-convert` 和 PySide6。
 
@@ -376,8 +380,12 @@ Environment=PATH=%h/.bun/bin:%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin
 | `DEVTRAY_PYTHON` | 运行内嵌 Qt 面板的解释器，默认 `python3` |
 | `TERMINAL` | 未配置 `settings.terminal` 时优先选择的终端 |
 
-v0.1.0 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
+v0.1.1 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
 
 ## 许可
 
-目前保留项目原有的 `Proprietary` 专有许可标记。仓库公开不代表已授予开源许可。
+devtray 自有源码、文档及项目自制资源采用 [MIT 许可证](LICENSE)。Copyright (c) 2026 ferychen。
+
+第三方组件保留各自许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 和 [licenses/](licenses/README.md)。可选的 PySide6／Qt 界面使用用户另行安装的 LGPLv3 库；本发布包不捆绑 Python、PySide6 或 Qt。
+
+安装包包含项目许可证、依赖许可声明、适用的 Unicode 声明、Rust 标准库声明及 musl 版权信息。构建目标后，可执行 `python3 scripts/generate-third-party-notices.py --target x86_64-unknown-linux-musl` 重新生成声明；打包脚本会自动执行。

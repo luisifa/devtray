@@ -9,6 +9,8 @@ release_name="devtray-${release_version}-${release_target}"
 release_stage="target/release-staging/${release_name}"
 
 cargo build --release --locked --target "$release_target"
+python3 scripts/generate-third-party-notices.py --target "$release_target"
+if [ -d "$release_stage" ]; then rm -r "$release_stage"; fi
 mkdir -p dist "$release_stage"
 cargo deb --no-build --locked --target "$release_target" \
   --output "dist/devtray_${release_version}-1_amd64.deb"
@@ -18,7 +20,8 @@ cargo generate-rpm --target "$release_target" \
 install -m755 "target/$release_target/release/devtray" "$release_stage/devtray"
 strip "$release_stage/devtray"
 cp README.md README.zh-CN.md CHANGELOG.md CHANGELOG.zh-CN.md Cargo.lock "$release_stage/"
-if [ -f LICENSE ]; then cp LICENSE "$release_stage/"; fi
+cp LICENSE THIRD_PARTY_NOTICES.md "$release_stage/"
+cp -R licenses "$release_stage/"
 cp -R examples assets docs packaging "$release_stage/"
 tar -C target/release-staging -czf "dist/$release_name.tar.gz" "$release_name"
 (

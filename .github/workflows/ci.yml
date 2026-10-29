@@ -35,6 +35,15 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           python3 tests/mcp.py
+          python3 tests/interaction_fixes.py
+          python3 tests/service_alerts.py
+          python3 tests/resource_workspace.py
+          python3 tests/panel_assets.py
+          python3 tests/agents_skills.py
+          python3 tests/skills_check.py
+          python3 tests/skills_install.py
+          python3 tests/skills_write.py
+          python3 tests/disk_clean.py
           python3 tests/test_panel.py
           python3 tests/panel_instance.py
           python3 tests/log_restart.py

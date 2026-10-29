@@ -55,7 +55,7 @@ class PanelTests(unittest.TestCase):
 
     def test_real_filters_search_and_historical_logs(self):
         w = self.panel
-        w.navigate(2)
+        w.navigate(4)
         for name, control in w.level_buttons.items():
             control.setChecked(name == 'warn')
         w.log_changed()
@@ -75,7 +75,7 @@ class PanelTests(unittest.TestCase):
 
     def test_drag_selection_survives_poll_and_inflight_response(self):
         w = self.panel
-        w.navigate(2)
+        w.navigate(4)
         wait_for(lambda: not w.log_loading)
         viewport = w.log_view.viewport()
         QTest.mousePress(viewport, Qt.LeftButton, pos=QPoint(20, 20))
@@ -112,12 +112,12 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(w.log_view.textCursor().selectedText(), selected)
 
     def test_close_hides_without_destroying_state(self):
-        self.panel.navigate(2)
+        self.panel.navigate(4)
         self.panel.close()
         self.assertFalse(self.panel.isVisible())
         self.panel.show()
         self.assertTrue(self.panel.isVisible())
-        self.assertEqual(self.panel.page, 2)
+        self.assertEqual(self.panel.page, 4)
 
     def test_native_form_saves_and_preserves_comments(self):
         dialog = ServiceDialog(self.panel)
@@ -188,7 +188,7 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(self.panel.preferred_mode(), 'small')
         menu.open_logs('test/api')
         self.assertTrue(self.panel.isVisible())
-        self.assertEqual(self.panel.page, 2)
+        self.assertEqual(self.panel.page, 4)
         self.assertEqual(self.panel.preferred_mode(), 'small')
         self.panel.hide_panel()
         self.panel.present()
@@ -245,7 +245,7 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(actions[-1], ('restart', 'test/api'))
         QTest.mouseClick(row.logs, Qt.LeftButton)
         self.assertTrue(menu.isHidden())
-        self.assertEqual(self.panel.page, 2)
+        self.assertEqual(self.panel.page, 4)
         self.assertEqual(self.panel.log_service.currentData(), 'test/api')
 
     def test_quick_menu_deactivation_hides_and_stops_polling(self):

@@ -114,7 +114,8 @@ class ServiceRow(QFrame):
         self.terminal = button('实时终端', lambda: menu.owner.open_terminal(self.service['name']))
         self.terminal.setToolTip('tmux 原始屏幕与实时输出，不受分类筛选影响')
         self.preview = button('浏览器 ↗', lambda: menu.owner.open_preview(self.service))
-        container.addLayout(horizontal(self.terminal, self.preview, None))
+        self.acknowledge = button('标记已读', lambda: self.menu.owner.acknowledge_service(self.service))
+        container.addLayout(horizontal(self.terminal, self.preview, self.acknowledge, None))
         self.update_service(service)
 
     def action_button(self, value, callback):
@@ -128,6 +129,13 @@ class ServiceRow(QFrame):
         self.dot.setStyleSheet(f'color:{color};')
         self.name.setText(service['service'])
         self.name.setToolTip(service['name'] + '\n' + service['cwd'])
+        acknowledged = service['state'] == 'exited_failed' and service.get('alert_acknowledged')
+        if acknowledged:
+            status, color = '异常已读', '#a2b1a5'
+            self.dot.setStyleSheet(f'color:{color};')
+        self.acknowledge.setVisible(service['state'] == 'exited_failed' and not acknowledged)
+        self.acknowledge.setAccessibleName('标记已读 ' + service['name'])
+        self.acknowledge.setToolTip('本次异常标记已读，保留退出状态与日志')
         detail = status
         if service.get('port'):
             detail += f"  ·  :{service['port']}"
@@ -150,6 +158,7 @@ class ServiceRow(QFrame):
         busy = service['name'] in self.menu.owner.action_pending
         self.start_stop.setEnabled(not busy)
         self.restart.setEnabled(not busy)
+        self.acknowledge.setEnabled(not busy)
         if busy:
             self.state.setText('正在执行…')
 
@@ -344,15 +353,19 @@ class QuickMenu(QWidget):
         self.notice_label.setWordWrap(True)
         self.notice_label.hide()
         body.addWidget(self.notice_label)
+        self.dismiss_notice_button = button('清除提示', owner.dismiss_notice)
+        self.dismiss_notice_button.hide()
+        body.addWidget(self.dismiss_notice_button)
         self.expand_button = button('切换完整面板    ↗', lambda: owner.present('full', remember=True), 'quickOpen')
         body.addWidget(self.expand_button)
-        body.addLayout(horizontal(button('＋ 添加服务', self.add_service), None, button('设置', lambda: self.open_panel(3))))
+        body.addLayout(horizontal(button('＋ 添加服务', self.add_service), None, button('设置', lambda: self.open_panel(5))))
         self.timer = QTimer(self)
         self.timer.setInterval(2000)
         self.timer.timeout.connect(self.refresh)
         self.notice_timer = QTimer(self)
         self.notice_timer.setSingleShot(True)
         self.notice_timer.timeout.connect(self.notice_label.hide)
+        self.notice_timer.timeout.connect(self.dismiss_notice_button.hide)
         QShortcut(QKeySequence('Escape'), self, self.hide)
         QShortcut(QKeySequence('Ctrl+F'), self, self.search.setFocus)
         owner.destroyed.connect(self.deleteLater)
@@ -362,14 +375,14 @@ class QuickMenu(QWidget):
         services = data.get('services', [])
         counts = [sum(s['state'] in ('ready', 'running') for s in services),
                   sum(s['state'] == 'starting' for s in services),
-                  sum(s['state'] == 'exited_failed' for s in services)]
+                  sum(s['state'] == 'exited_failed' and not s.get('alert_acknowledged') for s in services)]
         for number, value in zip(self.numbers, counts):
             number.setText(str(value).zfill(2))
         groups = {}
         for service in services:
             groups.setdefault(service['project'], []).append(service)
         if self.default_collapse and services:
-            self.collapsed.update(name for name, items in groups.items() if all(s['state'] not in LIVE and s['state'] != 'exited_failed' for s in items))
+            self.collapsed.update(name for name, items in groups.items() if all(s['state'] not in LIVE and (s['state'] != 'exited_failed' or s.get('alert_acknowledged')) for s in items))
             self.default_collapse = False
         signature = [(project, [s['name'] for s in items]) for project, items in groups.items()]
         if signature != self.signature:
@@ -404,6 +417,7 @@ class QuickMenu(QWidget):
         if error:
             self.connection.setText('同步异常')
         self.notice_label.show()
+        self.dismiss_notice_button.show()
         self.notice_timer.start(8000 if error else 4000)
 
     def refresh(self):
@@ -427,7 +441,7 @@ class QuickMenu(QWidget):
         self.owner.present('full', page=page)
 
     def open_logs(self, name):
-        self.open_panel(2)
+        self.open_panel(4)
         self.owner.open_logs(name)
 
     def add_service(self):

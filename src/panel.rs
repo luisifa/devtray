@@ -20,13 +20,27 @@ fn launch_mode(
     let python = runtime()?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut cmd = Command::new(&python);
-    let quick_source =
-        serde_json::to_string(include_str!("../ui/quick_menu.py")).map_err(|e| e.to_string())?;
-    let script = format!(
-        "import sys, types\n_quick = types.ModuleType('quick_menu')\nexec({quick_source}, _quick.__dict__)\nsys.modules['quick_menu'] = _quick\n{}",
-        include_str!("../ui/panel.py")
-    );
-    cmd.args(["-c", &script]).arg(exe).arg(crate::config_path());
+    let mut script = "import sys, types\n".to_string();
+    for (name, source) in [
+        ("quick_menu", include_str!("../ui/quick_menu.py")),
+        (
+            "resource_selection",
+            include_str!("../ui/resource_selection.py"),
+        ),
+        ("resource_panel", include_str!("../ui/resource_panel.py")),
+        ("panel_theme", include_str!("../ui/panel_theme.py")),
+        (
+            "service_alert_panel",
+            include_str!("../ui/service_alert_panel.py"),
+        ),
+    ] {
+        let encoded = serde_json::to_string(source).map_err(|e| e.to_string())?;
+        script.push_str(&format!("_module = types.ModuleType('{name}')\nexec({encoded}, _module.__dict__)\nsys.modules['{name}'] = _module\n"));
+    }
+    script.push_str(include_str!("../ui/panel.py"));
+    cmd.args(["-c", "import sys; exec(sys.stdin.buffer.read())"])
+        .arg(exe)
+        .arg(crate::config_path());
     if let Some(mode) = mode {
         cmd.args(["--mode", mode]);
     }
@@ -39,7 +53,7 @@ fn launch_mode(
     if let Some(t) = target {
         cmd.args(["--target", t]);
     }
-    crate::proc::spawn_detached(&mut cmd).map_err(|e| e.to_string())
+    crate::proc::spawn_detached_with_input(&mut cmd, script.into_bytes()).map_err(|e| e.to_string())
 }
 
 /// Resolve the same interpreter for startup capability checks and UI launches.

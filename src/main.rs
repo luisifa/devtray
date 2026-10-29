@@ -2,15 +2,22 @@
 //!
 //! 三个入口：无参数 = 起托盘；`--status` = 打印一行一服务；`--check` = 自检。
 
+mod agents;
+mod alerts;
+mod clean;
 mod cli;
 mod config;
+mod disk;
 mod form;
 mod icons;
+mod jobs;
 mod logs;
 mod mcp;
 mod notify;
+mod ops;
 mod panel;
 mod proc;
+mod skills;
 mod terminal;
 mod tmux;
 mod tray;
@@ -193,6 +200,37 @@ fn main() -> ExitCode {
         Some("stop") => action(&args, cli::stop),
         Some("restart") => action(&args, cli::restart),
         Some("logs") => logs_cmd(&args[1..]),
+        Some("disk") => disk::command(&args[1..]),
+        Some("agents") => agents::command(&args[1..]),
+        Some("skills") => skills::command(&args[1..]),
+        Some("_agents") => agents::command(&["--json".to_string()]),
+        Some("_skills") => skills::command(&["--json".to_string()]),
+        Some("_skills-check") => skills::command(&["check".to_string(), "--json".to_string()]),
+        Some("_skills-plan") => skills::plan_command(&args[1..]),
+        Some("_skills-start") => skills::start_command(&args[1..]),
+        Some("_skills-run") => skills::run_job(args.get(1)),
+        Some("_skills-backups") => skills::backups_command(&args[1..]),
+        Some("_skills-restore") => skills::restore_command(&args[1..]),
+        Some("_skills-install-plan") => skills::install_plan_command(&args[1..]),
+        Some("_skills-install-start") => skills::install_start_command(&args[1..]),
+        Some("_disk-scan") => disk::scan_only(&args[1..]),
+        Some("_disk-cache") => disk::cache_command(),
+        Some("_clean") => clean::job_command(args.get(1)),
+        Some("_approve") => clean::approve_command(args.get(1)),
+        Some("_clean-plan") => clean::plan_command(&args[1..]),
+        Some("_clean-start") => clean::start_command(&args[1..]),
+        Some("_job") => jobs::command(&args[1..]),
+        Some("ack") => alerts::command(&args[1..]),
+        Some("_dismiss-alerts") => match alerts::dismiss(&config_path()) {
+            Ok(()) => {
+                say!("{{\"dismissed\":true}}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        },
         Some("terminal") => panel::terminal_command(args.get(1)),
         Some("panel") => panel::command(&args[1..]),
         Some("menu") => {
@@ -255,8 +293,22 @@ fn print_help() {
   devtray start <目标>       启动
   devtray stop <目标>        停止
   devtray restart <目标>     重启
+  devtray ack <目标>         将当前异常标记已读，保留退出状态与日志
   devtray logs <目标> [-n N] [--level warn,error] [--search 文本]
                [--history | --run N] [--json]  日志筛选（默认 80 行）
+  devtray disk [项目] [--json] [--refresh]  扫描构建目录占用（默认读 10 分钟缓存）
+  devtray disk open <目标>    用默认文件管理器打开项目根 / 服务工作目录
+  devtray disk clean <项目> --kind <目录名> [--yes] [--dry-run]
+                              清理构建目录（默认只做检查，--dry-run 不删）
+  devtray agents [--json]     检测本机 Agent 的版本与安装来源（只读）
+  devtray skills [--json|open]  Skills 清单 / lock 对账 / 副本漂移（只读）
+  devtray skills check [--refresh]  对比上游 tree sha（6h 缓存，只读）
+  devtray skills upgrade|remove <技能名> [--yes] [--allow-drift] [--dry-run]
+                             升级/删除技能（写入前快照，漂移默认拒绝）
+  devtray skills restore <技能名> [--snapshot ID] [--restore-lock] [--yes]
+                             从快照恢复内容与副本（默认不改 lock）
+  devtray skills install <来源> [--skill 名称] [--agent ID]... [--yes] [--dry-run]
+                             安装技能（GitHub 预检，显式 -a，固定 CLI）
   devtray open <目标>        用默认浏览器打开该服务的预览地址
   devtray edit <目标>        弹出表单改这个服务（yad；无 yad 时用 $EDITOR）
   devtray check              自检依赖/配置/单元

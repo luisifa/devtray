@@ -101,17 +101,37 @@ pub struct PaneInfo {
 
 pub type Snapshot = HashMap<String, PaneInfo>;
 
-/// 一次 `list-panes -a` 拿到全部会话状态（每个 tick 只起一个进程）
-pub fn snapshot() -> Snapshot {
-    let mut map = HashMap::new();
-    let Ok(out) = run(&[
+/// 可区分"没有 tmux server"和"tmux 查询失败"的版本。
+/// 清理必须先拿到 `Ok`：空表不能证明没有服务在跑。
+pub fn snapshot_result() -> Result<Snapshot, String> {
+    match run(&[
         "list-panes",
         "-a",
         "-F",
         "#{session_name}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_pid}",
-    ]) else {
-        return map; // 没有 tmux server = 什么都没跑
-    };
+    ]) {
+        Ok(out) => Ok(parse_snapshot(&out)),
+        // tmux 没起过 server 是"没有服务在跑"，不是"查询失败"；清理可以继续。
+        Err(e)
+            if e.contains("no server running")
+                || e.contains("no current session")
+                || (e.contains("error connecting to")
+                    && e.contains("No such file or directory")) =>
+        {
+            Ok(HashMap::new())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// 一次 `list-panes -a` 拿到全部会话状态（每个 tick 只起一个进程）。
+/// 失败时返回空表，只适用于"状态展示"这类可以降级的地方；写操作请用 `snapshot_result`。
+pub fn snapshot() -> Snapshot {
+    snapshot_result().unwrap_or_default()
+}
+
+fn parse_snapshot(out: &str) -> Snapshot {
+    let mut map = HashMap::new();
     for line in out.lines() {
         let mut it = line.splitn(4, '\t');
         let (Some(name), Some(dead), status, pid) = (it.next(), it.next(), it.next(), it.next())
@@ -332,6 +352,22 @@ mod tests {
         assert!(State::Exited(Some(101)).is_failure());
         assert!(!State::Exited(Some(0)).is_failure());
         assert!(!State::Exited(None).is_failure()); // 信号退出 = 我们自己停的
+    }
+
+    #[test]
+    fn parse_snapshot_reads_all_four_fields() {
+        let snap = parse_snapshot(
+            "devtray-a-backend\t0\t\t123\n\
+             devtray-a-frontend\t1\t101\t456\n",
+        );
+        assert_eq!(snap.len(), 2);
+        let backend = &snap["devtray-a-backend"];
+        assert!(!backend.dead);
+        assert_eq!(backend.status, None);
+        assert_eq!(backend.pid, 123);
+        let frontend = &snap["devtray-a-frontend"];
+        assert!(frontend.dead);
+        assert_eq!(frontend.status, Some(101));
     }
 
     /// 日志尾部按字节切，起点落在多字节字符中间时不能 panic（真实日志里有中文）。

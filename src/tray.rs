@@ -26,10 +26,13 @@ pub struct DevTray {
     targets: Vec<Target>,
     settings: Settings,
     states: HashMap<String, State>,
-    prev_states: HashMap<String, State>,
     /// 配置改了但服务还在跑 —— 菜单里标注「需重启生效」
     pending_restart: HashSet<String>,
     config_error: Option<String>,
+    acknowledged_config: Option<String>,
+    acknowledged_failures: HashMap<String, String>,
+    failure_tokens: HashMap<String, String>,
+    alert_store: PathBuf,
     mtime: Option<SystemTime>,
     last_notified: HashMap<String, Instant>,
     prober: tmux::Prober,
@@ -45,14 +48,18 @@ impl DevTray {
     /// 错误挂到菜单第一行让用户看见。
     pub fn new(cfg_path: PathBuf) -> Self {
         let settings = Settings::default();
+        let alert_store = crate::alerts::store_path(&cfg_path);
         let mut tray = Self {
             cfg_path,
             targets: Vec::new(),
             settings,
             states: HashMap::new(),
-            prev_states: HashMap::new(),
             pending_restart: HashSet::new(),
             config_error: None,
+            acknowledged_config: None,
+            acknowledged_failures: HashMap::new(),
+            failure_tokens: HashMap::new(),
+            alert_store,
             mtime: None,
             last_notified: HashMap::new(),
             prober: tmux::Prober::default(),
@@ -97,12 +104,70 @@ impl DevTray {
         for t in &self.targets {
             states.insert(t.session.clone(), self.prober.state_of(t, &snap));
         }
-        self.check_alerts(&states);
-        self.prev_states = std::mem::replace(&mut self.states, states);
+        let previous_tokens = std::mem::take(&mut self.failure_tokens);
+        self.failure_tokens = states
+            .iter()
+            .filter(|(_, state)| state.is_failure())
+            .filter_map(|(session, _)| {
+                let token = snap.get(session).and_then(crate::alerts::failure_token)?;
+                Some((session.clone(), token))
+            })
+            .collect();
+        self.load_acknowledgements();
+        self.check_alerts(&states, &previous_tokens);
+        self.states = states;
+    }
+
+    fn load_acknowledgements(&mut self) {
+        let saved = crate::alerts::Acknowledgements::load_at(&self.alert_store);
+        self.acknowledged_config = self
+            .config_error
+            .as_ref()
+            .filter(|error| saved.config_matches(error))
+            .cloned();
+        self.acknowledged_failures = saved.services;
+        self.acknowledged_failures
+            .retain(|session, token| self.failure_tokens.get(session) == Some(token));
+    }
+
+    fn failure_token(&self, session: &str) -> String {
+        self.failure_tokens
+            .get(session)
+            .cloned()
+            .unwrap_or_else(|| format!("{:?}", self.states.get(session)))
+    }
+
+    fn acknowledge_alerts(&mut self) {
+        let failures = self
+            .states
+            .iter()
+            .filter(|(_, state)| state.is_failure())
+            .map(|(session, _)| (session.clone(), self.failure_token(session)))
+            .collect();
+        if let Err(error) =
+            crate::alerts::record_at(&self.alert_store, &failures, self.config_error.as_deref())
+        {
+            notify::send("devtray：保存已读状态失败", &error);
+            return;
+        }
+        self.acknowledged_config = self.config_error.clone();
+        self.acknowledged_failures = failures;
+    }
+
+    fn service_acknowledged(&self, session: &str) -> bool {
+        self.acknowledged_failures.get(session) == Some(&self.failure_token(session))
+    }
+
+    fn unacknowledged_config(&self) -> bool {
+        self.config_error.is_some() && self.config_error != self.acknowledged_config
     }
 
     /// 只在「从非失败变成失败」时发一次通知，并按 debounce 去抖
-    fn check_alerts(&mut self, states: &HashMap<String, State>) {
+    fn check_alerts(
+        &mut self,
+        states: &HashMap<String, State>,
+        previous_tokens: &HashMap<String, String>,
+    ) {
         if !self.settings.notify {
             return;
         }
@@ -115,12 +180,11 @@ impl DevTray {
             if !state.is_failure() {
                 continue;
             }
+            if self.acknowledged_failures.get(&t.session) == self.failure_tokens.get(&t.session) {
+                continue;
+            }
             // 上一次已经是失败态就不重复报（例如同一次崩溃被多次轮询看到）
-            if self
-                .prev_states
-                .get(&t.session)
-                .is_some_and(|p| p.is_failure())
-            {
+            if previous_tokens.get(&t.session) == self.failure_tokens.get(&t.session) {
                 continue;
             }
             if self
@@ -145,7 +209,7 @@ impl DevTray {
     }
 
     fn badge(&self) -> icons::Badge {
-        if self.config_error.is_some() || self.any_failure() {
+        if self.unacknowledged_config() || self.any_failure() {
             icons::Badge::Error
         } else if self.any_starting() {
             icons::Badge::Starting
@@ -157,7 +221,10 @@ impl DevTray {
     }
 
     fn any_failure(&self) -> bool {
-        self.states.values().any(|s| s.is_failure())
+        self.states.iter().any(|(session, state)| {
+            state.is_failure()
+                && self.acknowledged_failures.get(session) != Some(&self.failure_token(session))
+        })
     }
 
     fn any_starting(&self) -> bool {
@@ -180,7 +247,16 @@ impl DevTray {
             .values()
             .filter(|s| **s == State::Starting)
             .count();
-        let failed = self.states.values().filter(|s| s.is_failure()).count();
+        let failed = self
+            .states
+            .iter()
+            .filter(|(session, state)| state.is_failure() && !self.service_acknowledged(session))
+            .count();
+        let acknowledged = self
+            .states
+            .iter()
+            .filter(|(session, state)| state.is_failure() && self.service_acknowledged(session))
+            .count();
         let up = ready + running;
         let mut parts = vec![format!("{up}/{total} 在跑")];
         if starting > 0 {
@@ -188,6 +264,9 @@ impl DevTray {
         }
         if failed > 0 {
             parts.push(format!("{failed} 失败"));
+        }
+        if acknowledged > 0 {
+            parts.push(format!("{acknowledged} 已读异常"));
         }
         parts.join(" · ")
     }
@@ -223,6 +302,7 @@ impl DevTray {
                 self.settings = cfg.settings;
                 self.targets = targets;
                 self.config_error = None;
+                self.acknowledged_config = None;
             }
             Err(e) => {
                 self.config_error = Some(e);
@@ -301,11 +381,41 @@ impl DevTray {
     fn service_submenu(&self, t: &Target) -> MenuItem<Self> {
         let state = self.state(t);
         let mut label = format!("{} · {}", t.service.name, state_label(state));
+        let acknowledged = state.is_failure() && self.service_acknowledged(&t.session);
+        if acknowledged {
+            label.push_str(" · 已读");
+        }
         if self.pending_restart.contains(&t.session) {
             label.push_str(" · 需重启生效");
         }
 
         let mut sub: Vec<MenuItem<Self>> = Vec::new();
+        if state.is_failure() {
+            let target = t.clone();
+            let config = self.cfg_path.clone();
+            let expected = self.failure_token(&t.session);
+            sub.push(
+                StandardItem {
+                    label: if acknowledged {
+                        "异常已读（保留退出状态与日志）"
+                    } else {
+                        "标记异常已读"
+                    }
+                    .into(),
+                    enabled: !acknowledged,
+                    activate: Box::new(move |_| {
+                        let target = target.clone();
+                        let config = config.clone();
+                        let expected = expected.clone();
+                        spawn_action(move || {
+                            crate::alerts::acknowledge_target(&config, &target, Some(&expected))
+                        });
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+            );
+        }
 
         let log_target = t.clone();
         sub.push(
@@ -377,7 +487,7 @@ impl DevTray {
                 enabled: !state.is_live(),
                 activate: Box::new(move |_| {
                     let t = start_target.clone();
-                    spawn_action(move || tmux::start(&t));
+                    spawn_action(move || crate::cli::start(&t).map(|_| ()));
                 }),
                 ..Default::default()
             }
@@ -392,7 +502,7 @@ impl DevTray {
                 enabled: state != State::NotStarted,
                 activate: Box::new(move |_| {
                     let t = stop_target.clone();
-                    spawn_action(move || tmux::stop(&t));
+                    spawn_action(move || crate::cli::stop(&t).map(|_| ()));
                 }),
                 ..Default::default()
             }
@@ -406,7 +516,7 @@ impl DevTray {
                 icon_name: "view-refresh".into(),
                 activate: Box::new(move |_| {
                     let t = restart_target.clone();
-                    spawn_action(move || tmux::restart(&t));
+                    spawn_action(move || crate::cli::restart(&t).map(|_| ()));
                 }),
                 ..Default::default()
             }
@@ -427,8 +537,13 @@ impl DevTray {
 
         SubMenu {
             label: menu_label(&label),
-            icon_data: icons::Badge::from_state(state).png(),
-            disposition: if state.is_failure() {
+            icon_data: if acknowledged {
+                icons::Badge::Idle
+            } else {
+                icons::Badge::from_state(state)
+            }
+            .png(),
+            disposition: if state.is_failure() && !acknowledged {
                 Disposition::Alert
             } else {
                 Disposition::Normal
@@ -470,10 +585,10 @@ impl DevTray {
                         let state = prober.state_of(t, &snap);
                         let r = match verb {
                             Bulk::Start if state.is_live() => Ok(()), // 不打断正在跑的
-                            Bulk::Start => tmux::start(t),
-                            Bulk::Restart => tmux::restart(t),
+                            Bulk::Start => crate::cli::start(t).map(|_| ()),
+                            Bulk::Restart => crate::cli::restart(t).map(|_| ()),
                             Bulk::Stop if state == State::NotStarted => Ok(()),
-                            Bulk::Stop => tmux::stop(t),
+                            Bulk::Stop => crate::cli::stop(t).map(|_| ()),
                         };
                         if let Err(e) = r {
                             first_err.get_or_insert(e);
@@ -597,6 +712,16 @@ impl Tray for DevTray {
                 .into(),
             );
         }
+        if self.unacknowledged_config() || self.any_failure() {
+            items.push(
+                StandardItem {
+                    label: "清除提示并恢复托盘状态".into(),
+                    activate: Box::new(|tray: &mut DevTray| tray.acknowledge_alerts()),
+                    ..Default::default()
+                }
+                .into(),
+            );
+        }
         items.push(MenuItem::Separator);
         let mut projects = Vec::new();
         for target in &self.targets {
@@ -631,7 +756,7 @@ impl Tray for DevTray {
             let running = targets.iter().filter(|t| self.state(t).is_live()).count();
             let failed = targets
                 .iter()
-                .filter(|t| self.state(t).is_failure())
+                .filter(|t| self.state(t).is_failure() && !self.service_acknowledged(&t.session))
                 .count();
             let starting = targets.iter().any(|t| self.state(t) == State::Starting);
             let badge = if failed > 0 {
@@ -820,7 +945,7 @@ pub fn autostart(targets: &[Target]) {
             continue;
         }
         let t = t.clone();
-        spawn_action(move || tmux::start(&t));
+        spawn_action(move || crate::cli::start(&t).map(|_| ()));
     }
 }
 
@@ -853,8 +978,73 @@ fn compact(text: &str, limit: usize) -> String {
 mod tray_tests {
     use super::*;
 
+    #[test]
+    fn restart_restores_acknowledged_failure_and_neutral_service_menu() {
+        let mut tray = fixture();
+        let session = tray.targets[1].session.clone();
+        let token = crate::alerts::failure_token(&tmux::PaneInfo {
+            dead: true,
+            status: Some(1),
+            pid: 4242,
+        })
+        .unwrap();
+        tray.failure_tokens.insert(session.clone(), token);
+        tray.acknowledge_alerts();
+        let mut restarted = fixture();
+        restarted.alert_store = tray.alert_store.clone();
+        restarted.failure_tokens = tray.failure_tokens.clone();
+        restarted.load_acknowledgements();
+        assert_eq!(restarted.badge(), icons::Badge::Ready);
+        assert!(restarted.states[&session].is_failure());
+        assert!(restarted.summary().contains("已读异常"));
+        if let MenuItem::SubMenu(menu) = restarted.service_submenu(&restarted.targets[1]) {
+            assert!(menu.label.contains("已读"));
+            assert!(matches!(menu.disposition, Disposition::Normal));
+            assert!(menu.submenu.iter().any(|item| matches!(item, MenuItem::Standard(action) if action.label.starts_with("异常已读") && !action.enabled)));
+        } else {
+            panic!("missing service menu");
+        }
+        restarted
+            .failure_tokens
+            .insert(session, "exit=1;pid=5252".into());
+        restarted.load_acknowledgements();
+        assert_eq!(restarted.badge(), icons::Badge::Error);
+        let _ = std::fs::remove_file(&tray.alert_store);
+        let _ = std::fs::remove_file(tray.alert_store.with_extension("lock"));
+    }
+
+    #[test]
+    fn acknowledging_restores_badge_without_changing_failures_and_new_episode_alerts() {
+        let mut tray = fixture();
+        let session = tray.targets[1].session.clone();
+        tray.failure_tokens
+            .insert(session.clone(), "exit1:10".into());
+        assert_eq!(tray.badge(), icons::Badge::Error);
+        tray.acknowledge_alerts();
+        assert_eq!(tray.badge(), icons::Badge::Ready);
+        assert!(tray.states[&session].is_failure());
+        tray.failure_tokens.insert(session, "exit1:20".into());
+        assert_eq!(tray.badge(), icons::Badge::Error);
+    }
+
+    #[test]
+    fn acknowledged_config_stays_visible_but_new_error_alerts() {
+        let mut tray = fixture();
+        tray.config_error = Some("bad configuration A".into());
+        tray.acknowledge_alerts();
+        assert_eq!(tray.badge(), icons::Badge::Ready);
+        assert_eq!(tray.config_error(), Some("bad configuration A"));
+        tray.config_error = Some("bad configuration B".into());
+        assert_eq!(tray.badge(), icons::Badge::Error);
+    }
+
     fn fixture() -> DevTray {
-        let path = std::env::temp_dir().join(format!("devtray-menu-{}.toml", std::process::id()));
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("devtray-menu-{}-{stamp}.toml", std::process::id()));
         std::fs::write(
             &path,
             r#"
@@ -879,6 +1069,7 @@ cmd = "true"
         )
         .unwrap();
         let mut tray = DevTray::new(path.clone());
+        tray.alert_store = path.with_extension("acks.json");
         std::fs::remove_file(path).unwrap();
         tray.states
             .insert(tray.targets[0].session.clone(), State::Ready);

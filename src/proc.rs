@@ -6,6 +6,28 @@
 
 use std::process::Command;
 
+/// Feed an embedded program through stdin instead of Linux's bounded argv entries.
+pub fn spawn_detached_with_input(cmd: &mut Command, input: Vec<u8>) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut child = cmd.stdin(std::process::Stdio::piped()).spawn()?;
+    // A one-shot CLI may exit as soon as this function returns, terminating any
+    // writer thread. Deliver and close stdin before detaching the waiter.
+    let result = child
+        .stdin
+        .take()
+        .ok_or_else(|| std::io::Error::other("missing child stdin"))
+        .and_then(|mut stdin| stdin.write_all(&input));
+    if let Err(error) = result {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error);
+    }
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 /// 启动一个不需要等结果的子进程，并在后台线程里 `wait` 掉它。
 pub fn spawn_detached(cmd: &mut Command) -> std::io::Result<()> {
     let mut child = cmd.spawn()?;
@@ -19,6 +41,25 @@ pub fn spawn_detached(cmd: &mut Command) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn embedded_program_larger_than_one_argument_reaches_child() {
+        let path = std::env::temp_dir().join(format!("devtray-input-{}.txt", std::process::id()));
+        let output = std::fs::File::create(&path).unwrap();
+        let mut command = Command::new("wc");
+        command.arg("-c").stdout(output);
+        spawn_detached_with_input(&mut command, vec![b'x'; 256 * 1024]).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let count = std::fs::read_to_string(&path).unwrap_or_default();
+            if count.trim() == "262144" {
+                break;
+            }
+            assert!(Instant::now() < deadline, "stdin payload was not delivered");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        std::fs::remove_file(path).unwrap();
+    }
 
     /// 回归测试：子进程退出后必须被 wait 掉，否则 `/proc/<pid>/.../children` 里会一直留着它。
     #[test]

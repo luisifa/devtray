@@ -38,6 +38,7 @@ def call(bus, path, interface, method, args=None):
 def wait_for(check, description):
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
+        APP.processEvents()
         value = check()
         if value:
             return value
@@ -70,7 +71,7 @@ thread = threading.Thread(target=loop.run, daemon=True)
 thread.start()
 
 try:
-    for mode in ('native', 'missing-python'):
+    for mode in ('native', 'missing-python', 'acknowledgement'):
         with tempfile.TemporaryDirectory(prefix='devtray-tray-context-') as temp:
             root = Path(temp)
             config = root/'config.toml'
@@ -81,6 +82,17 @@ try:
             env.pop('DEVTRAY_PYTHON', None)
             if mode == 'missing-python':
                 env['DEVTRAY_PYTHON'] = '/nonexistent/devtray-test-python'
+            if mode == 'acknowledgement':
+                config.write_text(f'[settings]\nnotify=false\npoll_ms=100\n[[project]]\nname="hb_ecom"\n[[project.service]]\nname="web"\ncwd="{root}"\ncmd="false"\n')
+                snapshot = root/'snapshot'
+                snapshot.write_text('devtray-hb_ecom-web\t1\t1\t4242\n')
+                bindir = root/'bin'
+                bindir.mkdir()
+                tmux = bindir/'tmux'
+                tmux.write_text('#!/bin/sh\ncat "$DEVTRAY_TEST_SNAPSHOT"\n')
+                tmux.chmod(0o755)
+                env.update(PATH=str(bindir)+':'+env['PATH'], DEVTRAY_TEST_SNAPSHOT=str(snapshot))
+
             socket_name = 'devtray-panel-' + hashlib.sha256(
                 (str(os.getuid()) + ':' + str(config.resolve())).encode()).hexdigest()[:24]
 
@@ -130,6 +142,34 @@ try:
                         wait_for(lambda: visible(False, False), 'Left click did not hide full panel')
                         call(bus, '/StatusNotifierItem', SNI, 'Activate', GLib.Variant('(ii)', (500, 30)))
                         wait_for(lambda: visible(False, True), 'Left click did not remember full mode')
+                    if mode == 'acknowledgement':
+                        def properties():
+                            return call(bus, '/StatusNotifierItem', 'org.freedesktop.DBus.Properties',
+                                        'GetAll', GLib.Variant('(s)', (SNI,)))[0]
+                        try:
+                            wait_for(lambda: '1 失败' in properties()['ToolTip'][3], 'Tray did not load the initial failed service')
+                        except AssertionError as exc:
+                            raise AssertionError((properties()['ToolTip'][3], (root/'tray.log').read_text())) from exc
+                        unread_icon = properties()['IconPixmap']
+                        assert unread_icon
+                        subprocess.run([str(ROOT/'target/debug/devtray'),'ack','hb_ecom/web'], env=env,
+                                       capture_output=True, text=True, check=True)
+                        read_icon = wait_for(lambda: (value if (value := properties()['IconPixmap']) != unread_icon else None),
+                                             'Marking failed service read did not restore tray icon')
+                        assert '已读异常' in properties()['ToolTip'][3]
+                        # Restart only this private tray, keeping the same failed pane and state store.
+                        os.killpg(process.pid, signal.SIGTERM)
+                        process.wait(timeout=5)
+                        process = subprocess.Popen([str(ROOT/'target/debug/devtray')], env=env,
+                            stdout=output, stderr=output, start_new_session=True)
+                        bus = f'org.kde.StatusNotifierItem-{process.pid}-1'
+                        wait_for(registered, 'Restarted tray did not register')
+                        wait_for(lambda: '已读异常' in properties()['ToolTip'][3], 'Restart did not restore durable acknowledgement')
+                        assert properties()['IconPixmap'] == read_icon, 'Restart lost the acknowledgement'
+                        snapshot.write_text('devtray-hb_ecom-web\t1\t1\t5252\n')
+                        wait_for(lambda: properties()['IconPixmap'] == unread_icon,
+                                 'A new failed run did not restore the error icon')
+                        print('PASS: real tray icon clears after read, survives restart, and alerts on new failed run', flush=True)
                     print(f'PASS: {mode} tray context-menu routing', flush=True)
                 finally:
                     send({'quit': True})

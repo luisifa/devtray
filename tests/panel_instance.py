@@ -40,7 +40,8 @@ with tempfile.TemporaryDirectory(prefix='devtray-instance-') as tmp:
             if bool(sock) == expected:
                 return
             time.sleep(.05)
-        raise AssertionError('panel socket did not ' + ('start' if expected else 'close'))
+        log = (Path(tmp)/'launcher.log').read_text(errors='replace')
+        raise AssertionError('panel socket did not ' + ('start' if expected else 'close') + '\n' + log[-2500:])
 
     def launch(*args):
         with (Path(tmp)/'launcher.log').open('ab') as output:

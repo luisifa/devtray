@@ -13,6 +13,7 @@ pub fn send(summary: &str, body: &str) {
     }
     let mut cmd = Command::new("notify-send");
     cmd.arg("--app-name=devtray")
+        .arg("--expire-time=8000")
         .arg("--icon=utilities-terminal")
         .arg(summary)
         .arg(body);

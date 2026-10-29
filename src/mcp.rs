@@ -11,6 +11,9 @@ use std::io::{BufRead, Write};
 use serde_json::{Value, json};
 
 use crate::cli::{self, Ctx};
+use crate::config::Config;
+use crate::disk;
+use crate::jobs::{Job, JobState};
 
 const PROTOCOL_FALLBACK: &str = "2025-06-18";
 
@@ -138,6 +141,43 @@ fn tools() -> Value {
                     "required": ["target"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "devtray_disk",
+                "description": "读取项目构建目录的扫描缓存（target / node_modules / .venv 等）：分配空间、逻辑大小、是否可清理。只读，不触发新扫描；缓存为空时提示用户先在资源页扫描。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "project": { "type": "string", "description": "可选，项目名；省略返回全部项目" } },
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_job",
+                "description": "查询后台任务（清理）的状态、进度、结果；cancel=true 只能取消尚未开始的 pending_approval 任务。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "job_id": { "type": "string", "description": "创建任务时返回的 job_id" },
+                        "cancel": { "type": "boolean", "description": "仅在任务尚未开始时取消" }
+                    },
+                    "required": ["job_id"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_clean",
+                "description": "请求清理项目里满足证据链的构建目录。只创建后台任务：默认由用户在桌面 yad 弹窗里批准（mcp_writes=ask），60 秒无响应视为拒绝；返回 job_id 后必须用 devtray_job 轮询结果。不能删除运行中服务所在目录、含挂载点或受 git 跟踪的目录。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": { "type": "string", "description": "项目名" },
+                        "kinds": { "type": "array", "items": { "type": "string" }, "description": "目录名，如 node_modules、target、.venv" },
+                        "paths": { "type": "array", "items": { "type": "string" }, "description": "绝对路径；与 kinds 二选一" },
+                        "all": { "type": "boolean", "description": "清理该项目全部可删候选" }
+                    },
+                    "required": ["project"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -167,6 +207,13 @@ fn arg<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
 }
 
 fn run_tool(name: &str, args: &Value) -> Result<String, String> {
+    match name {
+        "devtray_disk" => return disk_tool(args),
+        "devtray_job" => return job_tool(args),
+        "devtray_clean" => return clean_tool(args),
+        _ => {}
+    }
+
     let ctx = Ctx::load()?;
 
     if name == "devtray_status" {
@@ -241,6 +288,141 @@ fn run_tool(name: &str, args: &Value) -> Result<String, String> {
         }
         other => Err(format!("未知工具：{other}")),
     }
+}
+
+fn config_file() -> std::path::PathBuf {
+    std::env::var("DEVTRAY_CONFIG")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| crate::config::default_config_path())
+}
+
+fn string_array(args: &Value, key: &str) -> Result<Vec<String>, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .ok_or_else(|| format!("{key} 必须是字符串数组"))
+            })
+            .collect(),
+        Some(_) => Err(format!("{key} 必须是字符串数组")),
+    }
+}
+
+fn disk_tool(args: &Value) -> Result<String, String> {
+    let cfg = Config::load(&config_file())?;
+    let roots = cfg.project_roots()?;
+    let project = arg(args, "project");
+    if let Some(name) = project
+        && !roots.iter().any(|r| r.project == name)
+    {
+        return Err(format!(
+            "找不到项目 {name:?}；可用：{}",
+            roots
+                .iter()
+                .map(|r| r.project.as_str())
+                .collect::<Vec<_>>()
+                .join("、")
+        ));
+    }
+    let projects: Vec<disk::ProjectUsage> = disk::cached_all()
+        .into_iter()
+        .filter(|u| {
+            let known = roots
+                .iter()
+                .any(|r| r.project == u.project && r.root.display().to_string() == u.root);
+            known && project.map(|p| u.project == p).unwrap_or(true)
+        })
+        .collect();
+    let hint = if projects.is_empty() {
+        "尚无扫描缓存：请用户在资源页运行扫描，或执行 devtray disk --refresh"
+    } else {
+        ""
+    };
+    serde_json::to_string_pretty(&json!({
+        "projects": projects,
+        "scanned": !projects.is_empty(),
+        "hint": hint,
+    }))
+    .map_err(|e| e.to_string())
+}
+
+fn job_tool(args: &Value) -> Result<String, String> {
+    let id = arg(args, "job_id").ok_or("缺少 job_id")?;
+    let mut job = Job::load(id)?;
+    if args.get("cancel").and_then(Value::as_bool).unwrap_or(false) {
+        if job.state != JobState::PendingApproval {
+            return Err(format!("任务 {} 已在执行或已结束，无法取消", job.id));
+        }
+        job.cancel();
+        job.error = Some("agent 取消".into());
+        job.save()?;
+    }
+    serde_json::to_string_pretty(&job).map_err(|e| e.to_string())
+}
+
+fn clean_tool(args: &Value) -> Result<String, String> {
+    let cfg = Config::load(&config_file())?;
+    let mode = cfg.settings.mcp_writes.to_lowercase();
+    if mode == "deny" {
+        return Err("MCP 写操作已被配置禁用（mcp_writes = deny）".into());
+    }
+    let project_name = arg(args, "project").ok_or("缺少 project")?;
+    let kinds = string_array(args, "kinds")?;
+    let paths: Vec<std::path::PathBuf> = string_array(args, "paths")?
+        .into_iter()
+        .map(std::path::PathBuf::from)
+        .collect();
+    let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
+    if kinds.is_empty() && paths.is_empty() && !all {
+        return Err("必须提供 kinds、paths 或 all 之一".into());
+    }
+
+    let ctx = crate::clean::Context::load()?;
+    let project = ctx
+        .roots
+        .iter()
+        .find(|r| r.project == project_name)
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "找不到项目 {project_name:?}；可用：{}",
+                ctx.roots
+                    .iter()
+                    .map(|r| r.project.as_str())
+                    .collect::<Vec<_>>()
+                    .join("、")
+            )
+        })?;
+    let candidates = crate::clean::prepare_candidates(&project, &ctx, &kinds, &paths, all)?;
+    let job_paths: Vec<String> = candidates.iter().map(|c| c.path.clone()).collect();
+    let total: u64 = candidates.iter().map(|c| c.allocated).sum();
+    let ids: Vec<String> = candidates.iter().map(|c| c.relative.clone()).collect();
+
+    let mut job = Job::new("clean", Some(&project.project), &job_paths);
+    job.source = "mcp".into();
+    job.total = total;
+    job.save()?;
+
+    if mode == "allow" {
+        job.mark_running(Some("mcp_writes = allow"));
+        job.save()?;
+        crate::clean::spawn_worker("_clean", &job.id)?;
+    } else {
+        crate::clean::spawn_worker("_approve", &job.id)?;
+    }
+
+    serde_json::to_string_pretty(&json!({
+        "job_id": job.id,
+        "state": if mode == "allow" { "running" } else { "pending_approval" },
+        "count": candidates.len(),
+        "total": total,
+        "paths": ids,
+        "next": "用 devtray_job 轮询状态；用户在桌面上批准后才会删除",
+    }))
+    .map_err(|e| e.to_string())
 }
 
 /// 动作做完立刻回报新状态，省掉 agent 再查一次

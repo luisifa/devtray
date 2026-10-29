@@ -68,15 +68,24 @@ impl Ctx {
     pub fn statuses(&self) -> Vec<ServiceStatus> {
         let snap = tmux::snapshot();
         let mut prober = Prober::default();
+        let acknowledgements = crate::alerts::Acknowledgements::load_at(
+            &crate::alerts::store_path(&crate::config_path()),
+        );
         self.targets
             .iter()
             .map(|t| {
                 let state = prober.state_of(t, &snap);
+                let failure_token = snap.get(&t.session).and_then(crate::alerts::failure_token);
+                let alert_acknowledged = failure_token
+                    .as_deref()
+                    .is_some_and(|token| acknowledgements.contains(&t.session, token));
                 ServiceStatus {
                     project: t.project.clone(),
                     service: t.service.name.clone(),
                     session: t.session.clone(),
                     state,
+                    alert_acknowledged,
+                    failure_token,
                     exit_code: match state {
                         State::Exited(code) => code,
                         _ => None,
@@ -97,6 +106,8 @@ pub struct ServiceStatus {
     pub service: String,
     pub session: String,
     pub state: State,
+    pub alert_acknowledged: bool,
+    pub failure_token: Option<String>,
     pub exit_code: Option<i32>,
     pub cwd: String,
     pub cmd: String,
@@ -111,17 +122,21 @@ impl ServiceStatus {
     }
 
     pub fn human(&self) -> String {
-        format!(
-            "{:<28} {:<18} {}",
-            self.name(),
+        let state_text = format!(
+            "{}{}",
             self.state.text(),
-            self.session
-        )
+            if self.alert_acknowledged {
+                " · 已读"
+            } else {
+                ""
+            }
+        );
+        format!("{:<28} {:<18} {}", self.name(), state_text, self.session)
     }
 
     pub fn json(&self) -> String {
         format!(
-            r#"{{"project":{},"service":{},"name":{},"state":{},"state_text":{},"exit_code":{},"session":{},"cwd":{},"cmd":{},"log":{},"autostart":{},"url":{}}}"#,
+            r#"{{"project":{},"service":{},"name":{},"state":{},"state_text":{},"exit_code":{},"session":{},"cwd":{},"cmd":{},"log":{},"autostart":{},"url":{},"alert_acknowledged":{},"failure_token":{}}}"#,
             json_str(&self.project),
             json_str(&self.service),
             json_str(&self.name()),
@@ -136,6 +151,11 @@ impl ServiceStatus {
             json_str(&self.log),
             self.autostart,
             self.url
+                .as_deref()
+                .map(json_str)
+                .unwrap_or_else(|| "null".into()),
+            self.alert_acknowledged,
+            self.failure_token
                 .as_deref()
                 .map(json_str)
                 .unwrap_or_else(|| "null".into()),
@@ -161,6 +181,7 @@ pub fn statuses_human(statuses: &[ServiceStatus]) -> String {
 }
 
 pub fn start(t: &Target) -> Result<String, String> {
+    let _guard = crate::ops::acquire(std::time::Duration::from_secs(5))?;
     tmux::start(t)?;
     Ok(format!(
         "已启动 {}/{}（tmux 会话 {}）",
@@ -169,11 +190,13 @@ pub fn start(t: &Target) -> Result<String, String> {
 }
 
 pub fn stop(t: &Target) -> Result<String, String> {
+    let _guard = crate::ops::acquire(std::time::Duration::from_secs(5))?;
     tmux::stop(t)?;
     Ok(format!("已停止 {}/{}", t.project, t.service.name))
 }
 
 pub fn restart(t: &Target) -> Result<String, String> {
+    let _guard = crate::ops::acquire(std::time::Duration::from_secs(5))?;
     tmux::restart(t)?;
     Ok(format!("已重启 {}/{}", t.project, t.service.name))
 }
@@ -324,7 +347,7 @@ pub fn advice(statuses: &[ServiceStatus]) -> Option<String> {
         .collect();
     let failed: Vec<String> = statuses
         .iter()
-        .filter(|s| s.state.is_failure())
+        .filter(|s| s.state.is_failure() && !s.alert_acknowledged)
         .map(|s| s.name())
         .collect();
     let mut parts = Vec::new();

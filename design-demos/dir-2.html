@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>devtray · 资源工作台</title>
+  <style>
+:root { color-scheme: dark; --bg: #171a1b; --bg-2: #1b1f20; --panel: #202526; --panel-2: #252b2c; --panel-3: #2b3233; --line: #343c3d; --line-soft: #2a3031; --text: #edf2f0; --muted: #a9b3b0; --dim: #7f8b88; --accent: #59c6b0; --accent-2: #8cd8c8; --accent-dark: #193c36; --danger: #dd8f85; --warning: #c8b57e; --radius: 7px; --mono: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, monospace; --sans: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+body { font: 14px/1.45 var(--sans); overflow: hidden; }
+button, input { font: inherit; }
+button { color: inherit; }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.dim { color: var(--dim); }
+.accent { color: var(--accent-2); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.app { height: 100vh; min-height: 640px; display: grid; grid-template-rows: 58px minmax(0, 1fr) 54px; background: var(--bg); }
+.topbar { display: flex; align-items: center; gap: 18px; padding: 0 18px; background: #1e2223; border-bottom: 1px solid var(--line); position: relative; z-index: 20; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 106px; font-weight: 650; letter-spacing: .2px; }
+.brand-mark { width: 25px; height: 25px; border: 1px solid #4c5a57; border-radius: 6px; display: grid; grid-template-columns: repeat(2, 6px); grid-template-rows: repeat(2, 6px); place-content: center; gap: 3px; background: #222829; }
+.brand-mark i { background: var(--accent); border-radius: 1px; }
+.brand-mark i:nth-child(2), .brand-mark i:nth-child(3) { opacity: .5; }
+.global-nav { align-self: stretch; display: flex; align-items: stretch; gap: 4px; min-width: 0; }
+.nav-tab { position: relative; border: 0; background: transparent; color: var(--muted); padding: 0 15px; cursor: pointer; white-space: nowrap; }
+.nav-tab:hover { color: var(--text); background: #24292a; }
+.nav-tab.active { color: var(--text); }
+.nav-tab.active::after { content: ""; position: absolute; left: 13px; right: 13px; bottom: 0; height: 2px; background: var(--accent); }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); white-space: nowrap; }
+.snapshot { font-size: 12px; }
+.demo-badge { font-size: 12px; line-height: 1; color: #b9e9df; border: 1px solid #38675e; background: #1b302d; border-radius: 4px; padding: 5px 7px; }
+.icon-btn, .plain-btn, .primary-btn, .ghost-btn, .danger-btn { min-height: 40px; border-radius: 6px; cursor: pointer; }
+.icon-btn { width: 44px; height: 44px; display: inline-grid; place-items: center; padding: 0; border: 1px solid transparent; background: transparent; color: var(--muted); }
+.icon-btn:hover { background: var(--panel-3); border-color: var(--line); color: var(--text); }
+.icon-btn svg, .button-icon svg, .row-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn svg { width: 19px; height: 19px; }
+.workspace { display: grid; grid-template-columns: 68px minmax(0, 1fr); min-height: 0; }
+.project-rail { background: #1a1e1f; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 7px; min-height: 0; }
+.rail-label { color: var(--dim); font-size: 12px; margin-bottom: 2px; }
+.rail-project { width: 48px; height: 46px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--muted); display: grid; place-items: center; position: relative; cursor: pointer; }
+.rail-project svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.rail-project span { position: absolute; bottom: 3px; font: 12px/1 var(--mono); color: var(--dim); letter-spacing: -.2px; }
+.rail-project:hover { background: var(--panel); color: var(--text); }
+.rail-project.active { color: var(--accent-2); border-color: #355b54; background: #1d2b29; }
+.rail-project.active::before { content: ""; position: absolute; left: -11px; top: 9px; bottom: 9px; width: 2px; background: var(--accent); }
+.rail-spacer { flex: 1; }
+.rail-count { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--accent-2); font: 12px/1 var(--mono); background: var(--panel); }
+.main { min-width: 0; min-height: 0; overflow: auto; padding: 24px 24px 18px; background: var(--bg); }
+.page { display: none; min-height: 100%; }
+.page.active { display: block; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; min-height: 66px; margin-bottom: 16px; }
+.eyebrow { color: var(--dim); font-size: 12px; margin: 0 0 5px; }
+h1 { margin: 0; font-size: 25px; line-height: 1.2; font-weight: 620; letter-spacing: 0; }
+.page-subtitle { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.resource-composition { width: min(430px, 38vw); padding: 10px 12px 9px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.composition-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.composition-total { color: var(--text); }
+.stacked-bar { display: flex; height: 7px; gap: 2px; overflow: hidden; border-radius: 4px; }
+.stacked-bar span { min-width: 2px; height: 100%; background: var(--accent); }
+.stacked-bar span:nth-child(2) { opacity: .78; }
+.stacked-bar span:nth-child(3) { opacity: .58; }
+.stacked-bar span:nth-child(4) { opacity: .4; }
+.stacked-bar span:nth-child(5) { opacity: .25; }
+.composition-legend { display: flex; gap: 12px; margin-top: 7px; flex-wrap: wrap; color: var(--dim); font-size: 12px; }
+.composition-legend b { font-weight: 500; color: var(--muted); }
+.notice { min-height: 44px; display: flex; align-items: center; gap: 10px; border: 1px solid #454536; background: #29281f; color: #d7cfad; border-radius: var(--radius); padding: 7px 8px 7px 12px; margin-bottom: 12px; font-size: 14px; }
+.notice strong { color: #e8dfbd; font-weight: 600; }
+.notice .icon-btn { margin-left: auto; width: 34px; height: 34px; min-height: 34px; }
+.resource-grid { display: grid; grid-template-columns: 210px minmax(0, 1fr) 320px; gap: 14px; min-height: 470px; height: calc(100vh - 304px); }
+.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+.pane-head { min-height: 47px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); background: #222728; }
+.pane-title { font-weight: 610; font-size: 14px; white-space: nowrap; }
+.count-badge { margin-left: auto; color: var(--muted); font: 12px/1 var(--mono); background: var(--panel-3); border-radius: 9px; padding: 4px 7px; }
+.project-list { padding: 6px; overflow: auto; }
+.project-item { width: 100%; min-height: 58px; text-align: left; border: 1px solid transparent; border-radius: 6px; background: transparent; padding: 8px 9px; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; cursor: pointer; }
+.project-item:hover { background: var(--panel-2); }
+.project-item.active { background: #1d2e2b; border-color: #355a53; }
+.project-folder { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 5px; display: grid; place-items: center; color: var(--muted); background: #252a2b; }
+.project-folder svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.project-item.active .project-folder { color: var(--accent-2); border-color: #3e665f; }
+.project-name { font-size: 14px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-meta { margin-top: 3px; color: var(--dim); font-size: 12px; display: flex; gap: 7px; }
+.table-toolbar { min-height: 46px; padding: 6px 8px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid var(--line-soft); }
+.project-path { min-width: 0; flex: 1; color: var(--muted); font: 12px/1.3 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-wrap { width: 155px; position: relative; flex: 0 1 155px; }
+.search-wrap svg { position: absolute; left: 9px; top: 12px; width: 15px; height: 15px; fill: none; stroke: var(--dim); stroke-width: 1.7; }
+.search-input { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 6px; background: #1b2021; color: var(--text); padding: 0 9px 0 30px; }
+.search-input::placeholder { color: var(--dim); }
+.table-wrap { min-height: 0; flex: 1; overflow: auto; }
+.dir-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dir-table thead { position: sticky; top: 0; z-index: 2; background: #202526; }
+.dir-table th { height: 38px; color: var(--dim); font-size: 12px; font-weight: 500; text-align: left; border-bottom: 1px solid var(--line); padding: 0 8px; white-space: nowrap; }
+.dir-table th.sortable { cursor: pointer; user-select: none; }
+.dir-table th.sortable:hover { color: var(--text); background: var(--panel-2); }
+.dir-table td { height: 50px; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: middle; }
+.dir-table tbody tr { cursor: default; }
+.dir-table tbody tr:hover, .dir-table tbody tr.menu-focus { background: #242a2b; }
+.dir-table tbody tr.selected { background: #1b2b29; }
+.dir-table .check-col { width: 42px; text-align: center; }
+.dir-table .kind-col { width: 86px; }
+.dir-table .size-col { width: 96px; text-align: right; }
+.dir-table .action-col { width: 44px; padding: 0; }
+.path-cell { display: block; color: var(--text); font: 12px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kind-chip { display: inline-flex; color: #bdc8c5; font-size: 12px; }
+.size-value { font: 12px/1 var(--mono); color: #dde5e2; }
+.locked-label { display: block; color: var(--dim); font-size: 12px; margin-top: 3px; }
+input[type="checkbox"] { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .45; }
+.table-empty { padding: 34px 16px; text-align: center; color: var(--dim); }
+.table-foot { min-height: 36px; padding: 0 10px; display: flex; align-items: center; color: var(--dim); font-size: 12px; border-top: 1px solid var(--line); }
+.table-foot span:last-child { margin-left: auto; }
+.selection-summary { padding: 12px; border-bottom: 1px solid var(--line); background: #1d2324; }
+.selection-kicker { color: var(--dim); font-size: 12px; }
+.selection-values { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 5px; }
+.selection-count { font-size: 14px; color: var(--text); }
+.selection-size { font: 16px/1 var(--mono); color: var(--accent-2); }
+.cleanup-list { min-height: 0; flex: 1; overflow: auto; padding: 5px; }
+.cleanup-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 40px; align-items: center; min-height: 58px; border-bottom: 1px solid var(--line-soft); border-radius: 4px; padding: 3px 0 3px 5px; }
+.cleanup-row:hover, .cleanup-row.menu-focus { background: var(--panel-2); }
+.cleanup-main { min-width: 0; cursor: pointer; }
+.cleanup-project { display: flex; gap: 6px; align-items: center; color: var(--accent-2); font-size: 12px; }
+.cleanup-project span { color: var(--dim); font-family: var(--mono); }
+.cleanup-path { color: var(--text); font: 12px/1.35 var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cleanup-size { color: var(--dim); font: 12px/1.2 var(--mono); margin-top: 2px; }
+.remove-btn { width: 40px; height: 40px; }
+.cleanup-empty { padding: 32px 14px; text-align: center; color: var(--dim); font-size: 14px; }
+.cleanup-actions { border-top: 1px solid var(--line); padding: 9px; display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; background: #1f2425; }
+.ghost-btn, .primary-btn, .danger-btn, .plain-btn { border: 1px solid var(--line); background: var(--panel-2); padding: 0 13px; }
+.ghost-btn:hover, .plain-btn:hover { color: var(--text); background: var(--panel-3); }
+.primary-btn { min-height: 44px; border-color: #4c9f8e; background: var(--accent); color: #10221f; font-weight: 650; }
+.primary-btn:hover { background: var(--accent-2); }
+.danger-btn { color: #eed1cd; border-color: #624742; background: #322622; }
+.danger-btn:hover { background: #422e29; }
+.task-rail { min-width: 0; border-top: 1px solid var(--line); background: #1d2122; display: flex; align-items: center; gap: 14px; padding: 0 16px; overflow: hidden; }
+.task-rail-title { display: flex; align-items: center; gap: 8px; min-width: 84px; color: var(--muted); font-size: 12px; }
+.pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #203a35; }
+.task-track { min-width: 0; display: flex; align-items: center; gap: 7px; overflow-x: auto; scrollbar-width: thin; padding: 5px 0; }
+.task-step { flex: 0 0 auto; height: 34px; min-width: 118px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 0 10px; color: var(--text); font-size: 12px; }
+.task-step::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
+.task-step.complete::before { background: var(--accent); }
+.task-step.pending::before { background: var(--warning); }
+.task-step em { margin-left: auto; font: normal 12px/1 var(--mono); color: var(--dim); }
+.task-tail { margin-left: auto; color: var(--dim); font-size: 12px; white-space: nowrap; }
+.overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.metric { min-height: 102px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 15px; }
+.metric-label { color: var(--dim); font-size: 12px; }
+.metric-value { margin-top: 12px; font: 25px/1 var(--mono); color: var(--text); }
+.metric-note { margin-top: 10px; color: var(--muted); font-size: 12px; }
+.overview-columns { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .8fr); gap: 14px; }
+.module { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+.module-head { min-height: 49px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); background: #222728; }
+.module-title { font-weight: 610; }
+.module-body { padding: 12px 14px; }
+.usage-row { display: grid; grid-template-columns: 130px minmax(90px, 1fr) 82px; gap: 12px; align-items: center; min-height: 46px; }
+.usage-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-name small { display: block; color: var(--dim); font-size: 12px; }
+.usage-track { height: 7px; background: #171b1c; border-radius: 4px; overflow: hidden; }
+.usage-fill { height: 100%; background: var(--accent); opacity: .82; border-radius: inherit; }
+.usage-value { text-align: right; color: var(--muted); font: 12px/1 var(--mono); }
+.queue-stat { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.queue-stat:last-child { border-bottom: 0; }
+.queue-stat strong { font: 15px/1 var(--mono); color: var(--text); }
+.queue-note { margin-top: 10px; padding: 10px 11px; border: 1px solid #3d493f; background: #202925; border-radius: 5px; color: #c8d7d2; font-size: 12px; }
+.overview-lower { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+.small-module { min-height: 118px; padding: 14px; }
+.small-module h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.small-module p { margin: 0; color: var(--muted); font-size: 14px; }
+.status-line { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
+.agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.agent-panel { min-height: 440px; }
+.agent-panel .module-body { padding: 0; }
+.scope-bar { padding: 11px 14px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 12px; }
+.scope-bar code { color: #ced8d5; font-family: var(--mono); font-size: 12px; }
+.check-row { min-height: 78px; padding: 11px 14px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; border-bottom: 1px solid var(--line-soft); }
+.agent-icon { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: var(--accent-2); background: #1b2322; }
+.agent-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.check-title { font-weight: 600; }
+.check-detail { color: var(--dim); font-size: 12px; margin-top: 3px; }
+.state-label { display: inline-flex; align-items: center; min-height: 24px; padding: 0 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.state-label.demo { border-color: #3d665e; background: #1b302c; color: #bde8de; }
+.panel-actions { padding: 14px; display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--line-soft); }
+.panel-actions .plain-btn { min-height: 44px; }
+.agent-output { margin-left: auto; color: var(--dim); font-size: 12px; }
+.agent-alert { margin: 12px 14px 0; }
+.skill-row + .skill-row { border-top: 1px solid var(--line-soft); }
+.skill-row { padding: 13px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.skill-name { font: 14px/1.35 var(--mono); color: var(--text); }
+.skill-origin { margin-top: 3px; color: var(--dim); font-size: 12px; }
+.empty-honest { padding: 18px 14px; color: var(--dim); font-size: 12px; line-height: 1.7; }
+.task-page-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+.log-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.log-table th, .log-table td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+.log-table th { color: var(--dim); font-size: 12px; font-weight: 500; background: #222728; }
+.log-table td { color: var(--muted); font-size: 12px; }
+.log-table td:nth-child(1) { width: 94px; }
+.log-table td:nth-child(2) { color: var(--text); }
+.log-table td:nth-child(3) { width: 92px; }
+.activity-empty { padding: 28px 16px; text-align: center; color: var(--dim); font-size: 14px; }
+.task-summary { padding: 14px; }
+.summary-rule { height: 1px; background: var(--line-soft); margin: 13px 0; }
+.summary-item { display: flex; justify-content: space-between; padding: 7px 0; color: var(--muted); font-size: 12px; }
+.summary-item strong { color: var(--text); font-weight: 500; }
+.popover { position: fixed; z-index: 70; width: 220px; border: 1px solid #46504e; border-radius: 7px; background: #222728; box-shadow: 0 18px 48px rgba(0,0,0,.42); padding: 5px; display: none; }
+.popover.open { display: block; }
+.menu-label { color: var(--dim); font-size: 12px; padding: 7px 9px 4px; }
+.menu-item { width: 100%; min-height: 40px; border: 0; border-radius: 5px; background: transparent; display: flex; align-items: center; gap: 9px; text-align: left; padding: 0 9px; cursor: pointer; color: var(--text); }
+.menu-item:hover { background: var(--panel-3); }
+.menu-item.is-danger { color: #edc5c0; }
+.menu-item small { margin-left: auto; color: var(--dim); font-size: 12px; }
+.menu-separator { height: 1px; background: var(--line); margin: 5px 4px; }
+.modal-layer { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(8, 10, 10, .68); backdrop-filter: blur(2px); }
+.modal-layer.open { display: flex; }
+.modal { width: min(560px, 100%); max-height: min(720px, 90vh); overflow: auto; border: 1px solid #46504e; border-radius: 8px; background: #202526; box-shadow: 0 28px 80px rgba(0,0,0,.5); }
+.modal-head { min-height: 54px; padding: 0 12px 0 17px; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.modal-title { font-weight: 620; }
+.modal-head .icon-btn { margin-left: auto; }
+.modal-body { padding: 17px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.modal-body h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); font-weight: 600; }
+.modal-body p { margin: 7px 0; }
+.modal-body code { font: 12px/1.5 var(--mono); color: var(--accent-2); word-break: break-all; }
+.modal-list { margin: 12px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.modal-list-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 11px; border-bottom: 1px solid var(--line-soft); }
+.modal-list-row:last-child { border-bottom: 0; }
+.modal-callout { padding: 10px 12px; border: 1px solid #61463f; background: #302521; border-radius: 6px; color: #e3c7c2; }
+.modal-foot { padding: 11px 15px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line); }
+.toast { position: fixed; z-index: 120; right: 20px; bottom: 72px; max-width: min(380px, calc(100vw - 32px)); border: 1px solid #47635d; border-radius: 7px; background: #20302c; color: #d7ebe6; padding: 11px 13px; box-shadow: 0 14px 42px rgba(0,0,0,.38); transform: translateY(12px); opacity: 0; pointer-events: none; transition: opacity .16s ease, transform .16s ease; font-size: 14px; }
+.toast.show { opacity: 1; transform: translateY(0); }
+@media (max-width: 1180px) { .main { padding: 18px 16px 14px; }
+.resource-grid { min-height: 0; }
+.resource-grid { grid-template-columns: 188px minmax(0, 1fr) 292px; gap: 11px; }
+.resource-composition { width: min(400px, 43vw); }
+.topbar { gap: 8px; padding: 0 12px; }
+.nav-tab { padding: 0 10px; }
+.topbar-right .snapshot { display: none; }
+.overview-grid { grid-template-columns: repeat(2, 1fr); }
+.task-tail { display: none; }
+}
+@media (max-width: 860px) { body { overflow: auto; }
+.app { height: auto; min-height: 100vh; grid-template-rows: auto minmax(0, 1fr) auto; }
+.topbar { flex-wrap: wrap; padding: 8px 12px 0; min-height: 104px; align-items: center; }
+.brand { order: 1; min-height: 44px; }
+.topbar-right { order: 2; }
+.global-nav { order: 3; width: 100%; height: 43px; overflow-x: auto; scrollbar-width: none; }
+.nav-tab { padding: 0 12px; }
+.workspace { grid-template-columns: 1fr; grid-template-rows: 66px minmax(0, 1fr); }
+.project-rail { border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; padding: 7px 10px; gap: 5px; overflow-x: auto; }
+.rail-label { min-width: 42px; margin: 0; }
+.rail-project { flex: 0 0 49px; width: 49px; height: 50px; }
+.rail-project.active::before { left: 10px; right: 10px; top: auto; bottom: -8px; width: auto; height: 2px; }
+.rail-spacer, .rail-count { display: none; }
+.main { overflow: visible; padding: 16px 12px; }
+.page-head { align-items: flex-start; flex-direction: column; gap: 12px; }
+.resource-composition { width: 100%; }
+.resource-grid { grid-template-columns: 1fr; height: auto; min-height: 0; }
+.project-pane { order: 1; }
+.content-pane { order: 2; min-height: 425px; }
+.cleanup-pane { order: 3; min-height: 440px; }
+.project-list { display: flex; overflow-x: auto; }
+.project-item { flex: 0 0 190px; }
+.table-toolbar { flex-wrap: wrap; }
+.search-wrap { flex: 1 1 135px; width: auto; }
+.project-path { flex-basis: 100%; }
+.dir-table .kind-col { width: 72px; }
+.dir-table .size-col { width: 82px; }
+.overview-columns, .agent-grid, .task-page-grid { grid-template-columns: 1fr; }
+.overview-lower { grid-template-columns: 1fr; }
+.task-rail { min-height: 54px; overflow-x: auto; }
+.task-rail-title { min-width: 78px; }
+.task-step { min-width: 112px; }
+}
+@media (max-width: 520px) { .topbar { min-height: 108px; }
+.brand { min-width: 92px; }
+.global-nav { justify-content: flex-start; }
+.nav-tab { min-width: max-content; }
+.resource-composition { display: none; }
+.page-head { min-height: 55px; }
+h1 { font-size: 23px; }
+.notice { align-items: flex-start; }
+.notice .icon-btn { flex: 0 0 44px; width: 44px; height: 44px; }
+.overview-grid { grid-template-columns: 1fr 1fr; }
+.metric { min-height: 94px; padding: 12px; }
+.metric-value { font-size: 21px; overflow-wrap: anywhere; }
+.usage-row { grid-template-columns: 105px minmax(70px, 1fr) 74px; gap: 8px; }
+.check-row { grid-template-columns: 34px minmax(0, 1fr); }
+.check-row .state-label { grid-column: 2; justify-self: start; }
+.panel-actions { flex-wrap: wrap; }
+.agent-output { flex-basis: 100%; margin: 2px 0 0; }
+.search-wrap { flex-basis: calc(100% - 52px); }
+.dir-table .kind-col { display: none; }
+.dir-table .size-col { width: 78px; }
+.dir-table th, .dir-table td { padding-left: 5px; padding-right: 5px; }
+.project-path { font-size: 12px; }
+.cleanup-actions { position: sticky; bottom: 0; z-index: 2; }
+.log-table td:nth-child(1) { width: 76px; }
+.log-table td:nth-child(3) { width: 70px; }
+.modal-layer { padding: 10px; }
+.modal-foot { flex-wrap: wrap; }
+.modal-foot button { flex: 1 1 120px; min-height: 44px; }
+}
+
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" aria-label="devtray">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>devtray</span>
+      </div>
+      <nav class="global-nav" aria-label="全局导航">
+        <button class="nav-tab" data-page="overview">总览</button>
+        <button class="nav-tab active" data-page="resources">资源</button>
+        <button class="nav-tab" data-page="agents">Agent 与 Skills</button>
+        <button class="nav-tab" data-page="tasks">任务记录</button>
+      </nav>
+      <div class="topbar-right">
+        <span class="snapshot">快照 · 2026-10-28</span>
+        <span class="demo-badge">演示状态</span>
+        <button class="icon-btn" id="trayButton" aria-label="托盘状态" title="托盘状态">
+          <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+        </button>
+        <button class="icon-btn" id="appMenuButton" aria-label="应用菜单" title="应用菜单">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="project-rail" aria-label="项目轨道">
+        <span class="rail-label">项目</span>
+        <div id="railProjects"></div>
+        <div class="rail-spacer"></div>
+        <div class="rail-count" id="railCount" title="待执行目录数量">17</div>
+      </aside>
+
+      <main class="main">
+        <section class="page active" id="page-resources" data-page-section="resources">
+          <div class="page-head">
+            <div>
+              <p class="eyebrow">本机扫描缓存 / 只读快照</p>
+              <h1>资源</h1>
+              <p class="page-subtitle">按项目定位目录，再将需清理项集中到待执行集合。</p>
+            </div>
+            <div class="resource-composition" id="resourceComposition" aria-label="真实项目资源占用构成"></div>
+          </div>
+          <div class="notice" id="resourceNotice">
+            <span><strong>演示边界</strong>：这里只选择和预览，计划不会触发真实清理。</span>
+            <button class="icon-btn" data-close-notice="resourceNotice" aria-label="关闭提示" title="关闭提示">
+              <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <div class="resource-grid">
+            <section class="pane project-pane" aria-label="项目列表">
+              <div class="pane-head"><span class="pane-title">项目</span><span class="count-badge" id="projectCount">5</span></div>
+              <div class="project-list" id="projectList"></div>
+            </section>
+            <section class="pane content-pane" aria-label="当前项目目录">
+              <div class="pane-head">
+                <span class="pane-title" id="currentProjectTitle">simple-oa</span>
+                <span class="count-badge">目录</span>
+              </div>
+              <div class="table-toolbar">
+                <span class="project-path mono" id="currentProjectPath"></span>
+                <label class="search-wrap">
+                  <span class="sr-only">筛选目录</span>
+                  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+                  <input class="search-input" id="dirSearch" type="search" placeholder="筛选目录">
+                </label>
+                <button class="icon-btn" id="projectMenuButton" aria-label="当前项目菜单" title="当前项目菜单">
+                  <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                </button>
+              </div>
+              <div class="table-wrap">
+                <table class="dir-table">
+                  <thead>
+                    <tr>
+                      <th class="check-col"><input id="selectProjectAll" type="checkbox" aria-label="全选本项目可清理目录"></th>
+                      <th class="sortable" data-sort="path">目录 <span id="pathSortMark"></span></th>
+                      <th class="kind-col sortable" data-sort="kind">类型 <span id="kindSortMark"></span></th>
+                      <th class="size-col sortable" data-sort="bytes">占用 <span id="sizeSortMark">↓</span></th>
+                      <th class="action-col"><span class="sr-only">操作</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="dirRows"></tbody>
+                </table>
+                <div class="table-empty" id="dirEmpty" hidden>没有匹配的目录。</div>
+              </div>
+              <div class="table-foot">
+                <span id="dirFootCount"></span>
+                <span>右键或 Shift+F10 打开行菜单</span>
+              </div>
+            </section>
+            <section class="pane cleanup-pane" aria-label="待执行集合">
+              <div class="pane-head">
+                <span class="pane-title">待执行集合</span>
+                <span class="count-badge" id="cleanupCountBadge">17</span>
+              </div>
+              <div class="selection-summary">
+                <div class="selection-kicker">跨项目保留 · 演示选择</div>
+                <div class="selection-values">
+                  <span class="selection-count" id="selectionCount">17 个目录</span>
+                  <span class="selection-size mono" id="selectionSize"></span>
+                </div>
+              </div>
+              <div class="cleanup-list" id="cleanupList"></div>
+              <div class="cleanup-actions">
+                <button class="danger-btn" id="clearSelection">清空</button>
+                <button class="primary-btn" id="previewPlan">预览待执行计划</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-overview" data-page-section="overview">
+          <div class="page-head">
+            <div>
+              <p class="eyebrow">缓存快照 / 无实时服务状态</p>
+              <h1>总览</h1>
+              <p class="page-subtitle">先了解扫描范围与待执行集合，再进入项目详情。</p>
+            </div>
+            <span class="state-label">2026-10-28 快照</span>
+          </div>
+          <div class="overview-grid" id="overviewMetrics"></div>
+          <div class="overview-columns">
+            <section class="module">
+              <div class="module-head"><span class="module-title">项目资源分布</span><span class="count-badge">真实字节数</span></div>
+              <div class="module-body" id="overviewUsage"></div>
+            </section>
+            <section class="module">
+              <div class="module-head"><span class="module-title">待执行集合</span><span class="count-badge demo-badge">演示</span></div>
+              <div class="module-body" id="overviewQueue"></div>
+            </section>
+          </div>
+          <div class="overview-lower">
+            <section class="module small-module">
+              <h3>Agent 本地检测</h3>
+              <p>资源快照不包含 Agent 检测结果。进入检测页单独重新检测。</p>
+              <div class="status-line"><span class="status-dot"></span><span id="overviewAgentState">待检测</span></div>
+            </section>
+            <section class="module small-module">
+              <h3>Skills 上游检查</h3>
+              <p>与 Agent 检测分开执行；原型只模拟检查流程。</p>
+              <div class="status-line"><span class="status-dot"></span><span id="overviewSkillState">未检查</span></div>
+            </section>
+            <section class="module small-module">
+              <h3>任务轨迹</h3>
+              <p>选择、预览与检测动作会写入任务记录，均可追溯。</p>
+              <div class="status-line"><span class="status-dot"></span><span id="overviewEventState">等待操作</span></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-agents" data-page-section="agents">
+          <div class="page-head">
+            <div>
+              <p class="eyebrow">两个独立入口 / 不使用通用在线状态</p>
+              <h1>Agent 与 Skills</h1>
+              <p class="page-subtitle">Agent 只处理本地版本检测，Skills 单独模拟上游检查。</p>
+            </div>
+            <span class="state-label demo">交互演示</span>
+          </div>
+          <div class="agent-grid">
+            <section class="module agent-panel">
+              <div class="module-head"><span class="module-title">Agent 本地版本</span><span class="count-badge">待重新检测</span></div>
+              <div class="module-body">
+                <div class="scope-bar">检测范围 <code>local PATH</code> · 不查询远程版本</div>
+                <div class="notice agent-alert" id="agentNotice">
+                  <span><strong>快照无结果</strong>：本次资源数据未包含 Agent 版本。</span>
+                  <button class="icon-btn" data-close-notice="agentNotice" aria-label="关闭 Agent 提示" title="关闭提示">
+                    <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                  </button>
+                </div>
+                <div class="check-row">
+                  <span class="agent-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v11H5z"/><path d="M9 8V5h6v3M9 12h.01M15 12h.01M9 16h6"/></svg></span>
+                  <div><div class="check-title">本地 Agent 可执行文件</div><div class="check-detail mono">pi · 待重新检测</div></div>
+                  <span class="state-label" id="agentState">未检测</span>
+                </div>
+                <div class="empty-honest">原型不读取系统 PATH，也不伪造版本号。点击后仅展示重新检测的交互结果。</div>
+              </div>
+              <div class="panel-actions">
+                <button class="plain-btn" id="checkAgent">重新检测 Agent 本地版本</button>
+                <span class="agent-output" id="agentOutput">结果：待检测</span>
+              </div>
+            </section>
+            <section class="module agent-panel">
+              <div class="module-head"><span class="module-title">Skills 上游检查</span><span class="count-badge">单独执行</span></div>
+              <div class="module-body">
+                <div class="scope-bar">快照技能清单 · 上游检查为 <span class="state-label demo">模拟</span></div>
+                <div class="skill-row">
+                  <div><div class="skill-name">ui-ux-pro-max</div><div class="skill-origin">来源：simple-oa / .agents/skills</div></div>
+                  <span class="state-label">未检查</span>
+                </div>
+                <div class="empty-honest">Skills 检查不会沿用 Agent 的检测结果；不展示未核实的新版本号。</div>
+              </div>
+              <div class="panel-actions">
+                <button class="plain-btn" id="checkSkills">检查 Skills 上游</button>
+                <span class="agent-output" id="skillOutput">结果：未检查</span>
+              </div>
+            </section>
+          </div>
+          <div class="module" style="margin-top:14px">
+            <div class="module-head"><span class="module-title">检测边界</span><span class="count-badge">事实说明</span></div>
+            <div class="module-body muted">
+              Agent 本地版本与 Skills 上游状态是两条独立链路。原型不调用命令、不安装、不删除，也不把“检查完成”解释为“已是最新”。
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-tasks" data-page-section="tasks">
+          <div class="page-head">
+            <div>
+              <p class="eyebrow">当前页面会话 / 状态均为演示</p>
+              <h1>任务记录</h1>
+              <p class="page-subtitle">记录本原型内的选择、预览与检测动作，便于核对待执行范围。</p>
+            </div>
+            <button class="plain-btn" id="resetDemo">重置演示状态</button>
+          </div>
+          <div class="task-page-grid">
+            <section class="module">
+              <div class="module-head"><span class="module-title">操作轨迹</span><span class="count-badge" id="logCount">0</span></div>
+              <div id="logBody"></div>
+            </section>
+            <section class="module">
+              <div class="module-head"><span class="module-title">本次会话</span><span class="state-label demo">演示</span></div>
+              <div class="task-summary">
+                <div class="summary-item"><span>所选目录</span><strong id="taskSelectedCount">17</strong></div>
+                <div class="summary-item"><span>所选占用</span><strong class="mono" id="taskSelectedSize"></strong></div>
+                <div class="summary-item"><span>计划预览</span><strong id="taskPlanState">未生成</strong></div>
+                <div class="summary-rule"></div>
+                <div class="summary-item"><span>Agent 检测</span><strong id="taskAgentState">未检测</strong></div>
+                <div class="summary-item"><span>Skills 检查</span><strong id="taskSkillState">未检查</strong></div>
+                <div class="summary-rule"></div>
+                <div class="muted" style="font-size:12px">这里不表示后台任务执行中，也不表示任何文件已清理。</div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="task-rail" aria-label="任务轨迹">
+      <div class="task-rail-title"><span class="pulse"></span>任务轨迹</div>
+      <div class="task-track" id="taskTrack"></div>
+      <span class="task-tail">快照 2026-10-28 · 仅演示</span>
+    </footer>
+  </div>
+
+  <div class="popover" id="contextMenu" role="menu"></div>
+  <div class="popover" id="appMenu" role="menu"></div>
+  <div class="popover" id="trayMenu" role="menu"></div>
+  <div class="modal-layer" id="modalLayer" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head"><span class="modal-title" id="modalTitle"></span><button class="icon-btn" id="modalClose" aria-label="关闭对话框"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+const projects = [ {name:"simple-oa",root:"~/Workspace/simple-oa",bytes:91974348800,items:[ {path:"backend/target",kind:"cargo_target",bytes:90494783488,deletable:true}, {path:"frontend/node_modules",kind:"node_modules",bytes:1039884288,deletable:true}, {path:".agents/skills/ui-ux-pro-max/scripts/__pycache__",kind:"py_cache",bytes:81920,deletable:true}, {path:"mcp-servers/oa-operator/__pycache__",kind:"py_cache",bytes:12288,deletable:true}, {path:".ruff_cache",kind:"ruff_cache",bytes:12288,deletable:true}, {path:"backend/scripts/__pycache__",kind:"py_cache",bytes:0,deletable:false} ]}, {name:"local-agent-studio",root:"~/Workspace/local_agent_studio",bytes:15651172352,items:[ {path:"target",kind:"cargo_target",bytes:13691752448,deletable:true}, {path:".dev-agent-dir/npm/node_modules",kind:"node_modules",bytes:125468672,deletable:true}, {path:".cargo-home/registry/src/mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda/cc-1.8.0/src/target",kind:"cargo_target",bytes:61440,deletable:false}, {path:".cargo-home/registry/src/mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda/cc-1.4.7/src/target",kind:"cargo_target",bytes:61440,deletable:false}, {path:"scripts/__pycache__",kind:"py_cache",bytes:0,deletable:false} ]}, {name:"hb_scf",root:"~/Workspace/hb_software/hb_scf",bytes:9808482304,items:[ {path:"backend/target",kind:"cargo_target",bytes:7003873280,deletable:true}, {path:"frontend-tenant/node_modules",kind:"node_modules",bytes:879874048,deletable:true}, {path:"frontend-mobile/frontend-tenant/node_modules",kind:"node_modules",bytes:841998336,deletable:true}, {path:"frontend/node_modules",kind:"node_modules",bytes:798142464,deletable:true}, {path:"frontend-mobile/node_modules",kind:"node_modules",bytes:252661760,deletable:true}, {path:".ruff_cache",kind:"ruff_cache",bytes:12288,deletable:true} ]}, {name:"hb_ecom",root:"~/Workspace/hb_software/hb_ecom",bytes:45357125632,items:[ {path:"backend/target",kind:"cargo_target",bytes:45104562176,deletable:true}, {path:"frontend-tenant/node_modules",kind:"node_modules",bytes:221851648,deletable:true}, {path:"scripts/__pycache__",kind:"py_cache",bytes:28672,deletable:true} ]}, {name:"killtower",root:"~/Workspace/MyGame/killing_tower/tools/content-editor",bytes:96010240,items:[ {path:"node_modules",kind:"node_modules",bytes:91811840,deletable:true} ]} ]; const kindNames = {cargo_target:"Cargo target",node_modules:"node_modules",py_cache:"Python cache",ruff_cache:"Ruff cache"}; const keyOf = (pi, ii) => `${pi}:${ii}`; const allItems = projects.flatMap((p, pi) => p.items.map((item, ii) => ({...item, pi, ii, key:keyOf(pi, ii)}))); let selected = new Set(["0:0", "1:0"]); let activeProject = 0; let currentPage = "resources"; let sort = {key:"bytes", dir:-1}; let log = []; let planPreviewed = false; let toastTimer; const $ = (s, root = document) => root.querySelector(s); const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+function formatBytes(bytes) { const units = ["B","KiB","MiB","GiB"]; let n = bytes, i = 0; while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; } const digits = i >= 3 ? (n >= 100 ? 1 : 2) : (n >= 10 ? 1 : 0); return `${n.toFixed(digits)} ${units[i]}`; }
+function totalAll() { return projects.reduce((sum, p) => sum + p.bytes, 0); }
+function selectedItems() { return allItems.filter(x => selected.has(x.key)); }
+function selectedBytes() { return selectedItems().reduce((sum, x) => sum + x.bytes, 0); }
+function currentItems() { const filtered = projects[activeProject].items .map((item, ii) => ({...item, ii, key:keyOf(activeProject, ii)})) .filter(x => x.path.toLowerCase().includes($("#dirSearch").value.toLowerCase())); return filtered.sort((a, b) => { const av = a[sort.key], bv = b[sort.key]; return (typeof av === "string" ? av.localeCompare(bv, "zh-CN") : av - bv) * sort.dir; }); }
+function icon(path) { return `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`; }
+function nowLabel() { return new Intl.DateTimeFormat("zh-CN", {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(new Date()); }
+function addLog(text, status = "演示") { log.unshift({time:nowLabel(), text, status}); renderLog(); renderTasks(); }
+function toast(message) { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600); }
+function renderRail() { $("#railProjects").innerHTML = projects.map((p, i) => ` <button class="rail-project ${i === activeProject ? "active" : ""}" data-project="${i}" aria-label="打开项目 ${p.name}" title="${p.name}"> ${icon("<path d='M3 6.5h7l1.5 2H21v9.5H3z'/><path d='M3 8.5h18'/>")} <span>${String(i + 1).padStart(2,"0")}</span> </button>`).join(""); $("#railCount").textContent = selected.size; }
+function renderComposition() { const bars = projects.map(p => `<span style="width:${(p.bytes / totalAll() * 100).toFixed(4)}%" title="${p.name} · ${formatBytes(p.bytes)}"></span>`).join(""); $("#resourceComposition").innerHTML = ` <div class="composition-top"><span>5 个项目目录占用</span><strong class="composition-total mono">${formatBytes(totalAll())}</strong></div> <div class="stacked-bar" aria-label="项目资源占用构成">${bars}</div> <div class="composition-legend">${projects.map(p => `<span><b>${p.name}</b> ${formatBytes(p.bytes)}</span>`).join("")}</div>`; }
+function renderProjectList() { $("#projectCount").textContent = projects.length; $("#projectList").innerHTML = projects.map((p, i) => { const chosen = p.items.filter((x, ii) => x.deletable && selected.has(keyOf(i, ii))).length; return `<button class="project-item ${i === activeProject ? "active" : ""}" data-project="${i}"> <span class="project-folder">${icon("<path d='M3 6.5h7l1.5 2H21v9.5H3z'/><path d='M3 8.5h18'/>")}</span> <span><span class="project-name">${p.name}</span><span class="project-meta"><span class="mono">${formatBytes(p.bytes)}</span><span>${chosen} 项入选</span></span></span> </button>`; }).join(""); }
+function renderTable() { const p = projects[activeProject]; const rows = currentItems(); $("#currentProjectTitle").textContent = p.name; $("#currentProjectPath").textContent = p.root; $("#dirRows").innerHTML = rows.map(x => ` <tr class="${selected.has(x.key) ? "selected" : ""}" data-key="${x.key}" tabindex="0" aria-label="${x.path}"> <td class="check-col"><input type="checkbox" data-select="${x.key}" ${selected.has(x.key) ? "checked" : ""} ${x.deletable ? "" : "disabled"} aria-label="选择 ${x.path}"></td> <td><span class="path-cell" title="${x.path}">${x.path}</span></td> <td class="kind-col"><span class="kind-chip">${kindNames[x.kind]}</span></td> <td class="size-col"><span class="size-value">${formatBytes(x.bytes)}</span>${x.deletable ? "" : "<span class='locked-label'>不可清理</span>"}</td> <td class="action-col"><button class="icon-btn more-btn" data-more="${x.key}" aria-label="打开 ${x.path} 菜单" title="更多">${icon("<circle cx='5' cy='12' r='1'/><circle cx='12' cy='12' r='1'/><circle cx='19' cy='12' r='1'/>")}</button></td> </tr>`).join(""); $("#dirEmpty").hidden = rows.length > 0; $("#dirFootCount").textContent = `${rows.length} / ${p.items.length} 项`; const deletable = p.items.map((item, ii) => ({item, key:keyOf(activeProject,ii)})).filter(x => x.item.deletable); const chosen = deletable.filter(x => selected.has(x.key)).length; const selectAll = $("#selectProjectAll"); selectAll.checked = deletable.length > 0 && chosen === deletable.length; selectAll.indeterminate = chosen > 0 && chosen < deletable.length; selectAll.disabled = deletable.length === 0; $("#pathSortMark").textContent = sort.key === "path" ? (sort.dir === 1 ? "↑" : "↓") : ""; $("#kindSortMark").textContent = sort.key === "kind" ? (sort.dir === 1 ? "↑" : "↓") : ""; $("#sizeSortMark").textContent = sort.key === "bytes" ? (sort.dir === 1 ? "↑" : "↓") : ""; }
+function renderCleanup() { const items = selectedItems(); $("#cleanupCountBadge").textContent = items.length; $("#railCount").textContent = items.length; $("#selectionCount").textContent = `${items.length} 个目录`; $("#selectionSize").textContent = formatBytes(selectedBytes()); $("#clearSelection").disabled = items.length === 0; $("#previewPlan").disabled = items.length === 0; $("#cleanupList").innerHTML = items.length ? items.map(x => { const p = projects[x.pi]; return `<div class="cleanup-row" data-key="${x.key}" tabindex="0"> <input type="checkbox" checked data-right-select="${x.key}" aria-label="切换 ${x.path}"> <div class="cleanup-main" data-details="${x.key}" title="查看详情"> <div class="cleanup-project">${p.name}<span>${kindNames[x.kind]}</span></div> <div class="cleanup-path" title="${x.path}">${x.path}</div> <div class="cleanup-size">${formatBytes(x.bytes)}</div> </div> <button class="icon-btn remove-btn" data-remove="${x.key}" aria-label="从待执行集合移除 ${x.path}" title="移出">${icon("<path d='m6 6 12 12M18 6 6 18'/>")}</button> </div>`; }).join("") : `<div class="cleanup-empty">当前没有待执行目录。勾选中央表格中的可清理项加入集合。</div>`; $("#taskSelectedCount").textContent = items.length; $("#taskSelectedSize").textContent = formatBytes(selectedBytes()); }
+function renderOverview() { const deletableCount = allItems.filter(x => x.deletable).length; $("#overviewMetrics").innerHTML = ` <div class="metric"><div class="metric-label">项目范围</div><div class="metric-value">${projects.length}</div><div class="metric-note">扫描快照中的项目</div></div> <div class="metric"><div class="metric-label">目录记录</div><div class="metric-value">${allItems.length}</div><div class="metric-note">${deletableCount} 条允许进入待执行</div></div> <div class="metric"><div class="metric-label">目录占用合计</div><div class="metric-value">${formatBytes(totalAll())}</div><div class="metric-note">按项目快照字节数相加</div></div> <div class="metric"><div class="metric-label">待执行集合</div><div class="metric-value">${selected.size}</div><div class="metric-note">${formatBytes(selectedBytes())} · 演示选择</div></div>`; const max = Math.max(...projects.map(p => p.bytes)); $("#overviewUsage").innerHTML = projects.map(p => ` <div class="usage-row"> <div class="usage-name">${p.name}<small>${p.items.length} 条目录</small></div> <div class="usage-track"><div class="usage-fill" style="width:${Math.max(2,p.bytes/max*100)}%"></div></div> <div class="usage-value">${formatBytes(p.bytes)}</div> </div>`).join(""); const byProject = projects.map((p, pi) => ({name:p.name,count:selectedItems().filter(x => x.pi === pi).length})).filter(x => x.count); $("#overviewQueue").innerHTML = ` <div class="queue-stat"><span>入选目录</span><strong>${selected.size}</strong></div> <div class="queue-stat"><span>入选占用</span><strong>${formatBytes(selectedBytes())}</strong></div> <div class="queue-stat"><span>涉及项目</span><strong>${byProject.length}</strong></div> <div class="queue-note">${byProject.length ? byProject.map(x => `${x.name} ${x.count}`).join(" · ") : "当前待执行集合为空"}</div>`; }
+function renderLog() { $("#logCount").textContent = log.length; $("#logBody").innerHTML = log.length ? ` <table class="log-table"><thead><tr><th>时间</th><th>动作</th><th>状态</th></tr></thead><tbody> ${log.slice(0,30).map(x => `<tr><td class="mono">${x.time}</td><td>${x.text}</td><td><span class="state-label demo">${x.status}</span></td></tr>`).join("")} </tbody></table>` : `<div class="activity-empty">尚未产生操作。切换项目、选择目录、预览计划或执行检测后会记录在这里。</div>`; $("#overviewEventState").textContent = log.length ? `已记录 ${log.length} 个演示动作` : "等待操作"; }
+function renderTasks() { $("#taskTrack").innerHTML = ` <div class="task-step complete">快照读取<em>2026-10-28</em></div> <div class="task-step ${selected.size ? "pending" : "complete"}">待执行集合<em>${selected.size} 项</em></div> <div class="task-step ${planPreviewed ? "complete" : "pending"}">计划预览<em>${planPreviewed ? "已生成" : "未生成"}</em></div> <div class="task-step ${$("#agentState").textContent === "未检测" ? "pending" : "complete"}">Agent 本地版本<em>${$("#agentState").textContent}</em></div> <div class="task-step ${$("#skillOutput").textContent === "结果：未检查" ? "pending" : "complete"}">Skills 上游<em>${$("#skillOutput").textContent.replace("结果：","")}</em></div>`; $("#taskPlanState").textContent = planPreviewed ? "已生成（演示）" : "未生成"; }
+function renderAll() { planPreviewed = false; renderRail(); renderComposition(); renderProjectList(); renderTable(); renderCleanup(); renderOverview(); renderTasks(); }
+function setProject(pi, fromRail = false) { activeProject = pi; $("#dirSearch").value = ""; renderRail(); renderProjectList(); renderTable(); addLog(`切换到项目 ${projects[pi].name}`); if (fromRail && currentPage !== "resources") showPage("resources"); }
+function toggleItem(key) { const item = allItems.find(x => x.key === key); if (!item || !item.deletable) return; if (selected.has(key)) { selected.delete(key); addLog(`移出待执行：${projects[item.pi].name}/${item.path}`); } else { selected.add(key); addLog(`加入待执行：${projects[item.pi].name}/${item.path}`); } renderAll(); renderLog(); }
+function removeItem(key) { const item = allItems.find(x => x.key === key); if (!item || !selected.has(key)) return; selected.delete(key); addLog(`移除单条：${projects[item.pi].name}/${item.path}`); renderAll(); renderLog(); toast(`已从待执行集合移除 ${item.path}`); }
+function showPage(name) { currentPage = name; $$(".nav-tab").forEach(b => b.classList.toggle("active", b.dataset.page === name)); $$(".page").forEach(p => p.classList.toggle("active", p.dataset.pageSection === name)); closePopovers(); if (name === "overview") renderOverview(); renderTasks(); }
+function openMenu(el, type, key, x, y) { closePopovers(); const pop = $("#contextMenu"); if (type === "dir") { const item = allItems.find(v => v.key === key); const p = projects[item.pi]; const selectedNow = selected.has(key); pop.innerHTML = `<div class="menu-label">${p.name}</div> <button class="menu-item" data-menu-action="toggle" data-key="${key}" ${item.deletable ? "" : "disabled"}>${icon(selectedNow ? "<path d='M5 12h14'/>" : "<path d='M12 5v14M5 12h14'/>")} ${selectedNow ? "从待执行移除" : "加入待执行"}</button> <button class="menu-item" data-menu-action="details" data-key="${key}">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 11v5M12 8h.01'/>")} 查看目录详情</button> <div class="menu-separator"></div> <button class="menu-item" data-menu-action="locate" data-key="${key}">${icon("<path d='M4 6h16v12H4z'/><path d='M8 10h8M8 14h5'/>")} 定位所属项目</button>`; } else { const item = allItems.find(v => v.key === key); pop.innerHTML = `<div class="menu-label">待执行条目</div> <button class="menu-item" data-menu-action="details" data-key="${key}">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 11v5M12 8h.01'/>")} 查看目录详情</button> <button class="menu-item" data-menu-action="locate" data-key="${key}">${icon("<path d='M3 6.5h7l1.5 2H21v9.5H3z'/><path d='M3 8.5h18'/>")} 打开所属项目</button> <div class="menu-separator"></div> <button class="menu-item is-danger" data-menu-action="remove" data-key="${key}">${icon("<path d='m6 6 12 12M18 6 6 18'/>")} 从待执行集合移除</button>`; } el.classList.add("menu-focus"); placePopover(pop, x, y); }
+function placePopover(pop, x, y) { pop.classList.add("open"); const rect = pop.getBoundingClientRect(); pop.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`; pop.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`; }
+function closePopovers() { $$(".popover").forEach(x => { x.classList.remove("open"); x.innerHTML = ""; }); $$(".menu-focus").forEach(x => x.classList.remove("menu-focus")); }
+function showDetails(key) { const item = allItems.find(x => x.key === key); const p = projects[item.pi]; const fullPath = `${p.root}/${item.path}`; openModal("目录详情", ` <h3>${item.path}</h3> <div class="modal-list"> <div class="modal-list-row"><span>所属项目</span><code>${p.name}</code></div> <div class="modal-list-row"><span>类型</span><span>${kindNames[item.kind]}</span></div> <div class="modal-list-row"><span>快照占用</span><code>${formatBytes(item.bytes)}</code></div> <div class="modal-list-row"><span>清理资格</span><span>${item.deletable ? "可加入待执行" : "不可清理"}</span></div> </div> <p>完整路径</p><code>${fullPath}</code> <p style="margin-top:13px" class="dim">异常副本漂移检测位于详情入口，不进入主表。</p>`, [{label:"关闭",className:"ghost-btn",action:closeModal}] ); }
+function locateProject(key) { const item = allItems.find(x => x.key === key); setProject(item.pi); showPage("resources"); toast(`已定位到 ${projects[item.pi].name}`); }
+function openModal(title, body, actions = []) { $("#modalTitle").textContent = title; $("#modalBody").innerHTML = body; const foot = $("#modalFoot"); foot.innerHTML = ""; actions.forEach(a => { const b = document.createElement("button"); b.className = a.className || "ghost-btn"; b.textContent = a.label; b.onclick = a.action; foot.appendChild(b); }); $("#modalLayer").classList.add("open"); $("#modalClose").focus(); }
+function closeModal() { $("#modalLayer").classList.remove("open"); }
+function previewPlan() { const items = selectedItems(); const groups = projects.map((p, pi) => ({p,items:items.filter(x => x.pi === pi)})).filter(g => g.items.length); planPreviewed = true; addLog(`生成待执行计划预览：${items.length} 个目录`); openModal("清理计划预览", ` <div class="modal-callout">演示确认：仅生成计划预览，不删除文件，不调用后端。</div> <h3 style="margin-top:16px">待执行范围</h3> <div class="modal-list">${groups.map(g => `<div class="modal-list-row"><span>${g.p.name}</span><code>${g.items.length} 项 · ${formatBytes(g.items.reduce((s,x)=>s+x.bytes,0))}</code></div>`).join("")}</div> <p>合计 <code>${items.length} 个目录 · ${formatBytes(selectedBytes())}</code>。</p> <p class="dim">路径、类型与快照占用来自 2026-10-28 的 data.json。计划不代表可释放空间承诺。</p>`, [{label:"关闭预览",className:"primary-btn",action:closeModal}] ); renderTasks(); renderLog(); }
+function confirmClear() { openModal("清空待执行集合", ` <p>将清除当前 <code>${selected.size}</code> 个目录的演示选择。目录数据与快照不会改变。</p> <p class="dim">此操作仅影响页面状态，不会删除任何文件。</p>`, [ {label:"取消",className:"ghost-btn",action:closeModal}, {label:"清空待执行集合",className:"danger-btn",action:() => { selected.clear(); planPreviewed = false; closeModal(); renderAll(); addLog("清空待执行集合"); renderLog(); toast("待执行集合已清空"); }} ] ); } $("#railProjects").addEventListener("click", e => { const b = e.target.closest("[data-project]"); if (b) setProject(+b.dataset.project, true); }); $("#projectList").addEventListener("click", e => { const b = e.target.closest("[data-project]"); if (b) setProject(+b.dataset.project); }); $("#dirSearch").addEventListener("input", renderTable); $$(".dir-table th.sortable").forEach(th => th.addEventListener("click", () => { const key = th.dataset.sort; sort = {key, dir:sort.key === key ? sort.dir * -1 : key === "bytes" ? -1 : 1}; renderTable(); })); $("#dirRows").addEventListener("change", e => { if (e.target.matches("[data-select]")) toggleItem(e.target.dataset.select); }); $("#dirRows").addEventListener("click", e => { const b = e.target.closest("[data-more]"); if (b) { const r = b.getBoundingClientRect(); openMenu(b.closest("tr"), "dir", b.dataset.more, r.right - 210, r.bottom + 5); } }); $("#dirRows").addEventListener("contextmenu", e => { const row = e.target.closest("tr[data-key]"); if (!row) return; e.preventDefault(); openMenu(row, "dir", row.dataset.key, e.clientX, e.clientY); }); $("#dirRows").addEventListener("keydown", e => { const row = e.target.closest("tr[data-key]"); if (row && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); const r = row.getBoundingClientRect(); openMenu(row, "dir", row.dataset.key, r.left + 80, r.top + 38); } }); $("#selectProjectAll").addEventListener("change", e => { projects[activeProject].items.forEach((item, ii) => { const key = keyOf(activeProject, ii); if (item.deletable) e.target.checked ? selected.add(key) : selected.delete(key); }); addLog(`${e.target.checked ? "全选" : "取消全选"} ${projects[activeProject].name} 的可清理目录`); renderAll(); renderLog(); }); $("#cleanupList").addEventListener("change", e => { if (e.target.matches("[data-right-select]")) toggleItem(e.target.dataset.rightSelect); }); $("#cleanupList").addEventListener("click", e => { const remove = e.target.closest("[data-remove]"); const details = e.target.closest("[data-details]"); if (remove) removeItem(remove.dataset.remove); if (details) showDetails(details.dataset.details); }); $("#cleanupList").addEventListener("contextmenu", e => { const row = e.target.closest(".cleanup-row"); if (!row) return; e.preventDefault(); openMenu(row, "cleanup", row.dataset.key, e.clientX, e.clientY); }); $("#cleanupList").addEventListener("keydown", e => { const row = e.target.closest(".cleanup-row"); if (row && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); const r = row.getBoundingClientRect(); openMenu(row, "cleanup", row.dataset.key, r.left + 60, r.top + 44); } }); $("#clearSelection").addEventListener("click", confirmClear); $("#previewPlan").addEventListener("click", previewPlan); $("#modalClose").addEventListener("click", closeModal); $("#modalLayer").addEventListener("click", e => { if (e.target === e.currentTarget) closeModal(); }); document.addEventListener("keydown", e => { if (e.key === "Escape") { closePopovers(); closeModal(); } }); document.addEventListener("click", e => { const action = e.target.closest("[data-menu-action]"); if (action) { const key = action.dataset.key; if (action.dataset.menuAction === "toggle") toggleItem(key); if (action.dataset.menuAction === "remove") removeItem(key); if (action.dataset.menuAction === "details") showDetails(key); if (action.dataset.menuAction === "locate") locateProject(key); closePopovers(); return; } if (!e.target.closest(".popover") && !e.target.closest("[data-more]") && !e.target.closest("#appMenuButton") && !e.target.closest("#trayButton")) closePopovers(); }); $$("[data-close-notice]").forEach(b => b.addEventListener("click", () => { const el = document.getElementById(b.dataset.closeNotice); el.hidden = true; toast("提示已关闭"); })); $$(".nav-tab").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page))); $("#checkAgent").addEventListener("click", () => { $("#agentState").textContent = "已请求（演示）"; $("#agentOutput").textContent = "结果：仅演示检测流程"; $("#overviewAgentState").textContent = "已请求本地检测（演示）"; $("#taskAgentState").textContent = "已请求（演示）"; addLog("请求重新检测 Agent 本地版本"); renderTasks(); toast("已演示 Agent 本地检测请求；未读取系统 PATH"); }); $("#checkSkills").addEventListener("click", () => { $("#skillOutput").textContent = "结果：仅演示上游检查"; $("#overviewSkillState").textContent = "模拟检查已触发"; $("#taskSkillState").textContent = "已检查（模拟）"; addLog("检查 Skills 上游（模拟）"); renderTasks(); toast("Skills 上游检查为模拟，未请求远端"); }); $("#appMenuButton").addEventListener("click", e => { e.stopPropagation(); closePopovers(); const pop = $("#appMenu"); pop.innerHTML = `<div class="menu-label">devtray</div> <button class="menu-item" data-app-action="snapshot">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 8v4l3 2'/>")} 查看数据快照</button> <button class="menu-item" data-app-action="tray">${icon("<path d='M5 4h14v16H5z'/><path d='M9 8h6M9 12h6M9 16h4'/>")} 托盘状态演示</button> <button class="menu-item" data-app-action="about">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 11v5M12 8h.01'/>")} 关于此原型</button> <div class="menu-separator"></div> <button class="menu-item is-danger" data-app-action="reset">${icon("<path d='M4 4v6h6'/><path d='M5 10a8 8 0 1 0 2-5'/>")} 重置演示状态</button>`; const r = e.currentTarget.getBoundingClientRect(); placePopover(pop, r.right - 220, r.bottom + 6); }); $("#trayButton").addEventListener("click", e => { e.stopPropagation(); closePopovers(); const pop = $("#trayMenu"); pop.innerHTML = `<div class="menu-label">托盘面板 · 演示</div> <div class="empty-honest">桌面进程：未连接<br>服务在线数：不在快照中<br>待执行：${selected.size} 个目录</div> <div class="menu-separator"></div> <button class="menu-item" data-app-action="tray">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 8v4l3 2'/>")} 打开状态说明</button> <button class="menu-item" data-app-action="resources">${icon("<path d='M3 6.5h7l1.5 2H21v9.5H3z'/>")} 返回待执行集合</button>`; const r = e.currentTarget.getBoundingClientRect(); placePopover(pop, r.right - 220, r.bottom + 6); }); document.addEventListener("click", e => { const a = e.target.closest("[data-app-action]"); if (!a) return; const action = a.dataset.appAction; closePopovers(); if (action === "snapshot") openModal("数据快照", ` <h3>2026-10-28 本机缓存</h3> <div class="modal-list"> <div class="modal-list-row"><span>项目</span><code>5</code></div> <div class="modal-list-row"><span>目录记录</span><code>21</code></div> <div class="modal-list-row"><span>可清理目录</span><code>17</code></div> <div class="modal-list-row"><span>项目占用合计</span><code>${formatBytes(totalAll())}</code></div> </div><p>数据来源为 data.json；页面不刷新、不连接后端。</p>`, [{label:"关闭",className:"ghost-btn",action:closeModal}]); if (action === "tray") openModal("托盘状态演示", ` <p>当前原型没有连接桌面进程，也没有实时服务状态。</p> <div class="modal-callout">能确认的只有：待执行集合中有 ${selected.size} 个演示选择。</div> <p class="dim" style="margin-top:12px">托盘菜单用于展示入口结构，不伪造“在线服务数”。</p>`, [{label:"关闭",className:"ghost-btn",action:closeModal}]); if (action === "about") openModal("关于此原型", ` <p><strong style="color:var(--text)">devtray</strong> 资源工作台 · 方向 B</p> <p>借桌面工具的分区方式组织项目、目录与待执行集合。</p> <p class="dim">单文件交互原型；目录数据来自 2026-10-28 快照；所有状态变更均为演示。</p>`, [{label:"关闭",className:"ghost-btn",action:closeModal}]); if (action === "resources") showPage("resources"); if (action === "reset") resetDemo(); }); $("#projectMenuButton").addEventListener("click", e => { e.stopPropagation(); closePopovers(); const pop = $("#contextMenu"), p = projects[activeProject]; pop.innerHTML = `<div class="menu-label">${p.name}</div> <button class="menu-item" data-project-action="select">${icon("<path d='M5 12l4 4L19 6'/>")} 选中本项目可清理目录</button> <button class="menu-item" data-project-action="overview">${icon("<path d='M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z'/>")} 查看资源总览</button> <button class="menu-item" data-project-action="details">${icon("<circle cx='12' cy='12' r='8'/><path d='M12 11v5M12 8h.01'/>")} 项目详情</button>`; const r = e.currentTarget.getBoundingClientRect(); placePopover(pop, r.right - 220, r.bottom + 6); }); document.addEventListener("click", e => { const a = e.target.closest("[data-project-action]"); if (!a) return; closePopovers(); if (a.dataset.projectAction === "select") { projects[activeProject].items.forEach((x, ii) => { if (x.deletable) selected.add(keyOf(activeProject,ii)); }); addLog(`选中 ${projects[activeProject].name} 的全部可清理目录`); renderAll(); renderLog(); } if (a.dataset.projectAction === "overview") showPage("overview"); if (a.dataset.projectAction === "details") { const p = projects[activeProject]; openModal("项目详情", `<h3>${p.name}</h3><p>完整根目录</p><code>${p.root}</code> <div class="modal-list"><div class="modal-list-row"><span>快照总占用</span><code>${formatBytes(p.bytes)}</code></div> <div class="modal-list-row"><span>目录记录</span><code>${p.items.length}</code></div> <div class="modal-list-row"><span>可清理项</span><code>${p.items.filter(x=>x.deletable).length}</code></div></div> <p class="dim">副本漂移检测保留在二级详情中；本原型不执行扫描。</p>`, [{label:"关闭",className:"ghost-btn",action:closeModal}]); } });
+function resetDemo() { selected = new Set(["0:0", "1:0"]); activeProject = 0; planPreviewed = false; log = []; sort = {key:"bytes",dir:-1}; $("#dirSearch").value = ""; $("#agentState").textContent = "未检测"; $("#agentOutput").textContent = "结果：待检测"; $("#skillOutput").textContent = "结果：未检查"; $("#overviewAgentState").textContent = "待检测"; $("#overviewSkillState").textContent = "未检查"; $("#taskAgentState").textContent = "未检测"; $("#taskSkillState").textContent = "未检查"; closeModal(); closePopovers(); renderAll(); renderLog(); showPage("resources"); toast("演示状态已重置"); } $("#resetDemo").addEventListener("click", () => { openModal("重置演示状态", `<p>恢复初始选择、任务记录与检测状态。</p><p class="dim">真实扫描数据不会被修改。</p>`, [{label:"取消",className:"ghost-btn",action:closeModal},{label:"重置",className:"primary-btn",action:resetDemo}]); }); renderAll(); renderLog(); renderTasks();
+</script>
+</body>
+</html>

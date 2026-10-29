@@ -1,0 +1,13 @@
+{
+  "global_project_tree": true,
+  "project_and_service_search": true,
+  "resource_project_sync": true,
+  "sidebar_visible_on_agents_page": true,
+  "cleanup_selection_retained_on_project_switch": true,
+  "javascript_errors": [],
+  "desktop_viewport": [
+    1440,
+    900
+  ],
+  "application_code_unchanged": true
+}

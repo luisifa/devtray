@@ -4,20 +4,25 @@
 
 [English](README.md) · [配置示例](examples/config.toml) · [更新日志](CHANGELOG.zh-CN.md)
 
+[开发状态与下一期边界](docs/development-status.md) · 本轮新增能力记录在「未发布」中。
+
 devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`、`bun run dev`、`npm run dev` 等命令按项目分组，通过桌面面板或 AI Agent 启停，并从同一个地方查看状态、终端和日志。
 
 开发时，Agent 经常把服务留在后台 Shell 中。服务虽然启动了，开发者却不容易找到它、查看错误或自己排查。devtray 把这些服务交给有名字的 tmux 会话托管，再提供可见的桌面入口：Agent 可以帮忙，人也能随时打开日志、复制错误、进入原始终端或重启服务。你可以让 AI 排障，也可以选择自己看。
 
-![项目总览，使用演示数据](docs/screenshots/overview.png)
+![项目总览，使用演示数据](docs/screenshots/workspace-overview.png)
 
 ## 功能
 
-- 小面板、完整控制面板和系统托盘右键菜单。
+- 松绿色完整工作台、快捷小面板和系统托盘右键菜单，保留项目／服务树、搜索和折叠。
 - 按项目组织多个服务，支持单服务、项目级和全局启停／重启。
 - 日志正则或 TCP 端口就绪探测，失败状态和可选桌面通知。
 - 日志级别筛选、搜索、跨重启历史、大小轮转、选择复制和导出。
 - 一键打开原始 tmux 终端、项目目录和浏览器预览。
 - CLI 和内置 stdio MCP 服务，与桌面端共用服务管理逻辑。
+- 三列资源页扫描构建目录占用，跨项目选择与统一预检，串行清理并记录审计。
+- Agent 与 Skills 页：版本、来源、lock 对账、副本漂移；技能安装/升级/删除带快照与漂移门禁。
+- 服务和项目范围的异常已读，日志中心集中筛选与处理，托盘同步恢复；新异常重新提醒。
 
 服务和日志采集器运行在 tmux 中。隐藏面板、退出托盘或重启 devtray，不会停止它们。但系统重启，以及会终止用户进程的注销操作，仍可能结束服务。
 
@@ -118,10 +123,15 @@ systemctl --user enable --now devtray.service
 poll_ms = 2000
 notify = true
 notify_debounce_s = 60
+disk_cache_ttl_s = 600
+skill_check_ttl_s = 21600   # Skills 上游检查缓存 6 小时
+mcp_writes = "ask"   # ask（桌面弹窗审批）/ deny / allow
+# clean_extra_dirs = ["dist"]   # 默认不清理 dist/build/vendor
 # terminal = "kitty"
 
 [[project]]
 name = "my-app"
+root = "~/Workspace/my-app"   # 可选；不写则按 service.cwd 的公共祖先推断
 
 [[project.service]]
 name = "backend"
@@ -147,6 +157,7 @@ url = "http://localhost:5173/"
 | 字段 | 含义 |
 | --- | --- |
 | `name` | 必填，项目／服务标识；完整目标名为 `项目/服务` |
+| `root` | 可选，项目根目录；资源扫描与「打开目录」以它为准。不写则用该 project 下 service.cwd 的公共祖先；`killtower` 这类单 cwd 子目录需要显式写 |
 | `cwd` | 必填且必须存在；建议绝对路径或 `~/...` |
 | `cmd` | 必填；在 tmux 中通过 `sh -lc` 执行 |
 | `autostart` | 默认 `false`；托盘启动时，若服务未运行则自动启动 |
@@ -159,6 +170,11 @@ url = "http://localhost:5173/"
 托盘自动重载配置，遇到非法配置时保留上一份可用配置。CLI／MCP 每次读取文件，非法时返回错误。修改运行中服务的命令或环境变量后，需要重启该服务；修改文件本身不会触发服务重启。`ready` 通常比 `port` 更准确，因为端口可能被另一个进程占用。
 
 ## 日常使用
+
+服务异常退出后，可在服务卡片、小面板服务行或托盘该服务菜单点击「标记已读」。已读记录按本次退出的进程标识持久保存：退出码、终端与日志保留，托盘不再因这条已读异常标红；新一次运行再次失败仍会告警。底部另有「全部异常标记已读」，无需先出现顶部错误提示。CLI：`devtray ack hb_ecom/web`。更新程序后需重启托盘与面板进程，单独重新编译不会替换已运行的进程。
+
+
+完整面板中，「标记已读」位于服务异常状态旁；选中项目的总览及服务管理项目标题处提供「本项目异常标记已读」，只处理该项目当前的异常。日志中心顶部新增「异常处理」列表，按项目和未读／已读筛选，逐条查看日志或标记已读；列表显示当前保留的异常退出，并非历史事件归档。标记已读时保留日志筛选、暂停状态和文字选区。
 
 左键托盘打开／收回上次选择的面板，首次默认为小面板；右键打开系统原生菜单。小面板底部和完整面板顶部可以切换模式，选择会被记住。关闭窗口或按 Esc 只是隐藏面板，服务继续运行。
 
@@ -180,6 +196,9 @@ devtray stop my-app/backend
 devtray terminal my-app/frontend  # 在终端模拟器中 attach 原始会话
 devtray open my-app/frontend      # 浏览器预览
 devtray edit my-app/backend       # yad 表单；缺少 yad 时回退到编辑器
+devtray agents [--json]           # 本机 Agent 版本与安装来源（只读）
+devtray skills [--json]           # Skills 清单、lock 对账与副本漂移（只读）
+devtray skills open               # 用文件管理器打开 ~/.agents/skills
 devtray help
 ```
 
@@ -196,6 +215,70 @@ devtray help
 | `exited_signal` | 保留的 pane 记录为信号退出 |
 
 托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.1.1 尚无持续健康检查或服务崩溃自动重启。
+
+完整面板、小面板与托盘菜单提供「清除提示」：确认当前告警并恢复托盘颜色，服务的退出状态与日志保留。服务再次失败或出现新配置错误时会重新告警；系统通知请求 8 秒后过期。
+
+## 资源与构建缓存
+
+面板采用松绿色工作台，保留全局项目／服务树与搜索。资源页分为项目、扫描目录、待清理清单三列；勾选跨项目、跨页面保留。所有选中项目先检查，再统一预览确认并逐项目清理；任何项目失败会停止后续任务，未完成选择保留。可以移出单项、清空选择或停止后续项目，这些动作不会自动删除目录。新的扫描若发现项目根或清理依据变化，会移除失效选择。
+
+实现与实际Qt截图见 [控制面板说明](docs/control-panel.md#松绿色方案落地2026-10-29)。浅色原型保留备用，目前没有运行时主题切换。
+
+
+完整面板侧栏新增「资源」页：按项目列出 `target`、`node_modules`、`.venv`、`__pycache__` 等可重建目录，显示分配空间与逻辑大小，并提供「打开目录」和「清理选中」。总览页只显示一行资产摘要，数字来自扫描缓存（默认 10 分钟）。
+
+扫描只认证据：`target` 需要 `Cargo.toml` 与构建痕迹，`node_modules` 需要 `package.json` + lockfile，`.venv` 需要 `pyvenv.cfg` 与 `uv.lock`/`requirements.txt`，`.ruff_cache` 这类工具缓存需要非空；被 git 跟踪、含挂载点、项目根过宽（`/`、家目录、`~/Workspace`、超过 50 个子目录）都会标为只读。**「候选」不等于「可删」**。
+
+```bash
+devtray disk                              # 全部项目
+devtray disk my-app --json                # 结构化
+devtray disk --refresh                    # 忽略缓存重新扫描
+devtray disk open my-app                  # 打开项目根
+devtray disk open my-app/backend          # 打开服务工作目录
+devtray disk clean my-app --kind node_modules --dry-run
+devtray disk clean my-app --kind node_modules --yes
+devtray disk clean my-app --all --yes     # 清理该项目全部可删候选
+```
+
+清理会在确认前和取得跨进程锁后各检查一次：有服务在运行、目录含挂载点、出现被 git 跟踪的文件、路径越界或含符号链接时直接拒绝。没有 `--kind`/`--path`/`--all` 时不会默认清空；`--dry-run` 只打印计划。删除是不可撤销的，分配空间也不等于删除后一定释放（硬链接/外部 store 可能仍占用）。审计写入 `~/.local/state/devtray/audit.jsonl`，任务状态写入 `~/.local/state/devtray/jobs/`。
+
+## Agent 与 Skills
+
+完整面板的「Agent 与 Skills」页检测本机已安装的 Agent，并对账 Skills 清单；技能的安装、升级、删除与快照恢复都已接入写门禁。
+
+两张列表支持右键菜单与「选中项操作」。Skills 副本状态移入详情，写入保护仍生效。「重新检测 Agent」只读本地版本；「检查 Skills 更新」比较受支持 GitHub 来源的 tree hash，不代表所有 Agent 共用一个更新接口。
+
+Agent 检测优先按 `PATH` 查找，并补查 `~/bin`、`~/.local/bin`、`~/.kimi-code/bin` 等用户安装目录；支持 `claude`、`codex`、`pi`、`dsh`、`gemini`、`opencode`、`qwen`、`aider`、`kimi`、`hermes`，用 `--version` 解析版本，再按系统包（pacman／dpkg）、npm 全局、原生安装目录判断来源，并给出**建议**的升级命令（需 sudo 的会标明，不会自动执行）。本机实测：Claude Code 为原生安装（`claude update`）；Codex 为 CachyOS 的 `openai-codex` 包（`sudo pacman -S openai-codex`）；Pi 为 `~/.pi/agent` 自管理安装（`pi update self`）；DSH 为 npm 全局包（`npm i -g @deepseek-ai/dsh@latest`）。
+
+```bash
+devtray agents
+devtray agents --json
+```
+
+Skills 以 `~/.agents/.skill-lock.json`（v3）和 `~/.agents/skills/` 为准：lock 有记录且目录存在的是「纳管」，只在磁盘上的显示「来源未知」。版本展示为上游目录树的短 hash（不是 semver），同时列出安装时间。`devtray skills check` 用 GitHub tree sha 对比上游：结果缓存 6 小时（`skill_check_ttl_s`），`--refresh` 绕过缓存；优先用 `gh api`，未登录时退回匿名 `curl`，限流或网络失败显示「无法检查」而不是误报有更新。面板的「检查更新」按钮走同一逻辑。面板还会检查 `~/.claude/skills`、`~/.codex/skills` 等 agent 副本：符号链接比较目标，独立副本用 `diff -rq` 比较内容，不一致就标「副本漂移」。状态会同时展示「有更新 / 已是最新 / 无法检查 / 副本漂移」。项目级 skills 暂不纳入管理。
+
+升级/删除固定使用 `npx --yes skills@1.7.4`，执行前枚举主存储、各 agent 副本与 lock，并把它们快照到 `~/.local/state/devtray/skills-backup/<技能>/<时间>/`（保留最近 3 份）。存在内容不一致的独立副本时**默认拒绝**，必须显式 `--allow-drift`；执行后校验收紧：升级要求主存储与 lock 记录仍在，删除要求目录、副本与 lock 条目都消失。任务与审计分别写入 `state/jobs/` 和 `audit.jsonl`。快照恢复默认只还原主存储与 agent 副本，**不改 lock**，状态会显示与 lock 不一致；加 `--restore-lock` 才原子写回该技能的单条 lock 记录（其余条目语义不变）。
+
+安装流程：解析 GitHub URL / `owner/repo@skill` / 裸名字（skills.sh 搜索，唯一命中才继续）→ 用 GitHub tree 预检 `SKILL.md` 候选 → 选择技能与目标 agent（默认检测到的 agent，显式 `-a`）→ 固定 `npx --yes skills@1.7.4 add … -g -y --json` → 校验 lock、主存储与每个副本。已有同名技能默认拒绝，需先用 `upgrade` 或显式 `--allow-existing`。
+
+```bash
+devtray skills
+devtray skills --json
+devtray skills check            # 联网比较上游 tree sha（默认读 6 小时缓存）
+devtray skills check --refresh  # 绕过缓存重新检查
+devtray skills open
+devtray skills upgrade alpha --dry-run        # 只打印影响路径，不执行
+devtray skills upgrade alpha --yes            # 升级（写入前快照）
+devtray skills remove alpha --yes             # 删除（写入前快照）
+devtray skills upgrade alpha --yes --allow-drift  # 确认覆盖漂移副本
+devtray skills restore alpha --dry-run            # 列出可用快照
+devtray skills restore alpha --snapshot <ID> --yes           # 只恢复内容与副本
+devtray skills restore alpha --snapshot <ID> --restore-lock --yes  # 同时写回该技能 lock
+devtray skills install owner/repo --skill alpha --agent claude-code --dry-run
+devtray skills install owner/repo --skill alpha --agent claude-code --yes
+devtray skills install https://github.com/owner/repo/tree/main/skills/alpha --yes
+devtray skills install huashu-design --yes      # 裸名字走 skills.sh 搜索（唯一命中才继续）
+```
 
 ## 自己查看和排查日志
 
@@ -252,6 +335,11 @@ codex mcp list
 | `devtray_stop` | `target` | 停止服务 |
 | `devtray_restart` | `target` | 停止后重新启动 |
 | `devtray_open_preview` | `target` | 在用户桌面打开预览网址 |
+| `devtray_disk` | 可选 `project` | 读取构建目录扫描缓存（分配/逻辑、可清理标记） |
+| `devtray_job` | `job_id`；可选 `cancel` | 查询后台清理任务的状态/进度/结果 |
+| `devtray_clean` | `project`；`kinds` / `paths` / `all` 之一 | 创建清理任务，返回 `job_id` |
+
+MCP 的写操作默认受 `mcp_writes` 控制：`ask` 时在用户桌面弹出 yad 对话框（60 秒无响应视为拒绝），`deny` 直接拒绝，`allow` 才跳过弹窗。`devtray_clean` 只创建任务并立即返回 `job_id`，不会阻塞连接；必须继续调用 `devtray_job` 轮询，直到 `done` / `error` / `cancelled`。执行前仍会复检运行中的服务和挂载点，审批通过不等于一定删除成功。
 
 建议流程：**先查状态 → 必要时启动 → 等待并复查就绪状态 → 失败时读取日志**。启动调用成功只表示已发起运行，不表示编译和启动已经结束。MCP 状态结果可能附带 `advice`，说明服务还在启动或建议查看错误日志。CLI 的 JSON 状态结果包含 `services`，人类可读输出会在需要时附带建议。
 
@@ -335,6 +423,15 @@ cargo test --locked
 cargo clippy --locked -- -D warnings
 cargo build --locked
 python3 tests/mcp.py
+python3 tests/interaction_fixes.py
+QT_QPA_PLATFORM=offscreen python3 tests/service_alerts.py
+QT_QPA_PLATFORM=offscreen python3 tests/resource_workspace.py
+QT_QPA_PLATFORM=offscreen python3 tests/panel_assets.py
+python3 tests/agents_skills.py
+python3 tests/skills_check.py
+python3 tests/skills_install.py
+python3 tests/skills_write.py
+python3 tests/disk_clean.py
 QT_QPA_PLATFORM=offscreen python3 tests/test_panel.py
 python3 tests/panel_instance.py
 python3 tests/log_restart.py

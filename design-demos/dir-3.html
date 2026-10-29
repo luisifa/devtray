@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>devtray · 资源</title>
+  <style>
+:root { --bg: #f2f4f3; --surface: #ffffff; --surface-alt: #f7f8f7; --silver: #e8ebea; --line: #d5dada; --line-strong: #b9c1c2; --text: #202527; --muted: #626c70; --quiet: #636d70; --blue: #1769c9; --blue-dark: #0f57aa; --blue-soft: #e9f2fc; --blue-line: #b7d2f2; --warm: #8b493d; --warm-soft: #fbf0ed; --radius: 8px; --control: 44px; } * { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; } body { overflow: hidden; color: var(--text); background: var(--bg); font-family: "Avenir Next", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.5; }
+button, input { font: inherit; } button { color: inherit; }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; } button:disabled { cursor: not-allowed; opacity: .46; }
+[hidden] { display: none !important; } .app-shell { min-height: 100vh; display: grid; grid-template-rows: 64px minmax(0, 1fr) 44px; }
+.topbar { display: grid; grid-template-columns: 212px minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--line); z-index: 20; } .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand strong { font-size: 20px; font-weight: 650; } .brand span { color: var(--quiet); font-size: 12px; }
+.main-nav { display: flex; align-self: stretch; gap: 2px; min-width: 0; } .nav-button { min-height: var(--control); padding: 0 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.nav-button:hover { color: var(--text); background: #f7f8f7; } .nav-button[aria-current="page"] { color: var(--blue-dark); border-bottom-color: var(--blue); font-weight: 600; }
+.top-actions { display: flex; align-items: center; gap: 8px; } .mode-label { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--line); color: var(--muted); background: var(--surface-alt); font-size: 12px; white-space: nowrap; }
+.mode-label::before { content: ""; width: 7px; height: 7px; background: var(--blue); } .icon-button { width: var(--control); height: var(--control); display: inline-grid; place-items: center; flex: 0 0 auto; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; cursor: pointer; }
+.icon-button:hover { background: var(--silver); border-color: var(--line); } .icon-button svg { width: 18px; height: 18px; display: block; }
+.button { min-height: var(--control); display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); cursor: pointer; white-space: nowrap; } .button:hover { border-color: #929c9e; background: #fafbfa; }
+.button.primary { border-color: var(--blue); background: var(--blue); color: #fff; } .button.primary:hover { background: var(--blue-dark); }
+.button.quiet { border-color: transparent; background: transparent; } .button.quiet:hover { background: var(--silver); border-color: var(--line); }
+.button.danger-text { color: var(--warm); } .button svg { width: 17px; height: 17px; }
+.app-main { min-height: 0; overflow: auto; padding: 20px 28px; } .view { width: 100%; max-width: 1500px; margin: 0 auto; }
+#view-resources.active { height: 100%; display: flex; flex-direction: column; gap: 12px; } .page-heading { min-height: 66px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.heading-copy { min-width: 0; } .kicker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 20px; color: var(--muted); font-size: 12px; }
+.demo-mark { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid var(--blue-line); background: var(--blue-soft); color: var(--blue-dark); font-size: 12px; } h1 { margin: 3px 0 2px; font-size: 25px; line-height: 1.25; font-weight: 650; }
+.heading-copy p { margin: 0; color: var(--muted); font-size: 14px; } .occupancy-figure { width: 232px; padding-top: 3px; flex: 0 0 auto; }
+.occupancy-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--muted); font-size: 12px; } .occupancy-meta strong { color: var(--text); font-size: 15px; }
+.occupancy-segments { display: flex; height: 8px; overflow: hidden; border: 1px solid var(--line-strong); background: var(--silver); } .occupancy-segments span { min-width: 2px; border-right: 1px solid rgba(255,255,255,.75); }
+.occupancy-segments span:last-child { border-right: 0; } .alert-banner { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 13px; border: 1px solid #d8d2cf; border-left: 3px solid #9a6a5f; background: #faf8f7; }
+.alert-banner svg { width: 17px; height: 17px; color: var(--warm); flex: 0 0 auto; } .alert-banner p { min-width: 0; flex: 1; margin: 0; color: #5d514e; }
+.resource-workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(220px, 24%) minmax(0, 1fr) minmax(286px, 30%); overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); } .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.pane + .pane { border-left: 1px solid var(--line); } .pane-header { min-height: 63px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: #fbfcfb; }
+.pane-header h2 { margin: 0; font-size: 15px; font-weight: 650; } .pane-header p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.pane-count { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; } .pane-body { min-height: 0; flex: 1; overflow: auto; }
+.project-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; min-height: 70px; border-bottom: 1px solid #e4e7e6; background: var(--surface); position: relative; } .project-row:hover { background: #f8f9f8; }
+.project-row.active { background: var(--blue-soft); } .project-row.active::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--blue); }
+.project-select { min-width: 0; min-height: 69px; padding: 10px 4px 10px 16px; border: 0; background: transparent; text-align: left; cursor: pointer; } .project-name-row, .meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .project-size { flex: 0 0 auto; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.project-path { display: block; margin-top: 2px; overflow: hidden; color: var(--quiet); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; } .project-meta { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+.row-menu { align-self: center; } .row-menu svg { width: 17px; height: 17px; }
+.content-list { min-height: 0; } .column-guide { min-height: 31px; display: grid; grid-template-columns: minmax(0, 1fr) 82px 90px 44px; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); background: #f7f8f7; color: var(--quiet); font-size: 12px; }
+.content-row { min-height: 60px; display: grid; grid-template-columns: 28px minmax(0, 1fr) 82px 90px 44px; align-items: center; gap: 8px; padding: 4px 8px 4px 14px; border-bottom: 1px solid #e5e8e7; background: var(--surface); } .content-row:hover { background: #f9fafa; }
+.check-label { width: 28px; height: var(--control); display: grid; place-items: center; cursor: pointer; } .square-check { appearance: none; width: 18px; height: 18px; margin: 0; display: grid; place-items: center; border: 1px solid #9ba5a7; border-radius: 2px; background: #fff; cursor: pointer; }
+.square-check:checked { border-color: var(--blue); background: var(--blue); } .square-check:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+.square-check:disabled { border-style: dashed; opacity: .38; } .item-copy { min-width: 0; min-height: var(--control); display: block; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.item-copy:hover .item-path { color: var(--blue-dark); text-decoration: underline; } .item-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.item-note { display: block; margin-top: 2px; overflow: hidden; color: var(--quiet); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; } .mini-capacity { min-width: 0; }
+.capacity-value { display: block; margin-bottom: 5px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; } .capacity-track { height: 4px; overflow: hidden; background: #e7eae9; }
+.capacity-fill { display: block; height: 100%; background: #5685bf; } .kind-label { color: var(--muted); font-size: 12px; }
+.selection-summary { margin: 12px; padding: 13px; border: 1px solid var(--blue-line); border-radius: 5px; background: var(--blue-soft); } .selection-summary .summary-label { display: flex; justify-content: space-between; color: var(--blue-dark); font-size: 12px; }
+.selection-total { display: block; margin: 5px 0 2px; color: #173c68; font-size: 23px; line-height: 1.3; font-weight: 650; font-variant-numeric: tabular-nums; } .selection-summary p { margin: 4px 0 0; color: #50677f; font-size: 12px; }
+.cleanup-list { padding-bottom: 10px; } .cleanup-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; min-height: 65px; margin: 0 12px 8px; border: 1px solid #d2e1f3; background: #f4f8fd; }
+.cleanup-row-main { min-width: 0; padding: 8px 4px 8px 10px; } .cleanup-project { display: inline-block; max-width: 100%; overflow: hidden; color: var(--blue-dark); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.cleanup-path { display: block; overflow: hidden; margin-top: 3px; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 550; } .cleanup-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.cleanup-actions { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; } .cleanup-actions .icon-button { color: var(--quiet); }
+.empty-state { min-height: 150px; display: grid; place-items: center; padding: 20px; color: var(--muted); text-align: center; } .empty-state strong { display: block; color: var(--text); font-size: 14px; }
+.empty-state span { display: block; margin-top: 4px; font-size: 12px; } .pane-actions { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #fbfcfb; }
+.pane-actions .button { flex: 1; padding: 0 10px; } .overview-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0 12px; }
+.summary-cell { min-height: 106px; padding: 16px; border: 1px solid var(--line); background: var(--surface); } .summary-cell span { color: var(--muted); font-size: 12px; }
+.summary-cell strong { display: block; margin: 8px 0 4px; font-size: 26px; line-height: 1.2; font-weight: 620; font-variant-numeric: tabular-nums; } .summary-cell p { margin: 0; color: var(--quiet); font-size: 12px; }
+.overview-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(270px, .7fr); gap: 12px; } .section-surface { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.section-head { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 15px; border-bottom: 1px solid var(--line); } .section-head h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.section-head p { margin: 2px 0 0; color: var(--muted); font-size: 12px; } .overview-project { width: 100%; min-height: 68px; display: grid; grid-template-columns: minmax(0, 1fr) 102px 80px; align-items: center; gap: 14px; padding: 8px 15px; border: 0; border-bottom: 1px solid #e4e7e6; background: var(--surface); text-align: left; cursor: pointer; }
+.overview-project:hover { background: #f8f9f8; } .overview-project:last-child { border-bottom: 0; }
+.overview-name { font-weight: 600; } .overview-root { display: block; overflow: hidden; color: var(--quiet); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.overview-count { color: var(--muted); font-size: 12px; } .overview-size { text-align: right; font-variant-numeric: tabular-nums; }
+.side-copy { padding: 16px; } .side-copy h3 { margin: 0 0 6px; font-size: 15px; }
+.side-copy p { margin: 0 0 16px; color: var(--muted); } .side-actions { display: grid; gap: 8px; }
+.side-actions .button { justify-content: space-between; } .agent-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 18px; }
+.check-section { min-width: 0; } .check-body { padding: 15px; }
+.check-intro { margin: 0 0 14px; color: var(--muted); } .agent-row, .skill-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 65px; padding: 9px 0; border-bottom: 1px solid #e4e7e6; }
+.agent-row:last-child, .skill-row:last-child { border-bottom: 0; } .executable { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 14px; font-weight: 600; }
+.row-detail { display: block; margin-top: 3px; color: var(--quiet); font-size: 12px; } .status-chip { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--line); background: var(--surface-alt); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.status-chip.success { border-color: var(--blue-line); background: var(--blue-soft); color: var(--blue-dark); } .check-note { margin: 14px 0; padding: 10px 11px; border-left: 3px solid var(--blue); background: #f4f7fa; color: var(--muted); font-size: 12px; }
+.check-actions { display: flex; justify-content: flex-end; } .skills-limit { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e4e7e6; color: var(--quiet); font-size: 12px; }
+.task-grid { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.5fr); gap: 12px; margin-top: 18px; } .session-summary { padding: 17px; }
+.session-summary h2 { margin: 0 0 5px; font-size: 17px; } .session-summary > p { margin: 0 0 18px; color: var(--muted); }
+.session-stat { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #e4e7e6; font-size: 14px; } .session-stat span { color: var(--muted); }
+.session-actions { margin-top: 14px; } .event-list { padding: 2px 16px 10px; }
+.event-item { display: grid; grid-template-columns: 54px 10px minmax(0, 1fr); gap: 9px; padding: 12px 0; border-bottom: 1px solid #e4e7e6; } .event-item:last-child { border-bottom: 0; }
+.event-time { color: var(--quiet); font-size: 12px; font-variant-numeric: tabular-nums; } .event-dot { width: 7px; height: 7px; margin-top: 7px; background: var(--blue); }
+.event-copy { color: var(--text); } .event-copy small { display: block; margin-top: 2px; color: var(--quiet); font-size: 12px; }
+.task-empty { min-height: 240px; } .statusbar { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 1.4fr) auto auto; align-items: center; gap: 14px; min-width: 0; padding: 0 16px; border-top: 1px solid var(--line); background: #ecefee; color: var(--muted); font-size: 12px; z-index: 15; }
+.status-primary, .status-last { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .status-primary { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.status-dot { width: 7px; height: 7px; flex: 0 0 auto; background: var(--blue); } .status-button { min-height: var(--control); padding: 0 8px; border: 0; border-left: 1px solid var(--line-strong); background: transparent; color: var(--muted); cursor: pointer; }
+.status-button:hover { color: var(--text); background: #e3e6e5; } .snapshot-label { color: var(--quiet); white-space: nowrap; }
+.popover-menu, .context-menu { position: fixed; z-index: 80; min-width: 210px; padding: 5px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); box-shadow: 0 8px 24px rgba(27, 35, 38, .14); } .context-menu { min-width: 224px; }
+.menu-item { width: 100%; min-height: var(--control); display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; text-align: left; cursor: pointer; } .menu-item:hover, .menu-item:focus { background: var(--blue-soft); outline: 0; }
+.menu-item small { color: var(--quiet); font-size: 12px; } .menu-separator { height: 1px; margin: 4px; background: var(--line); }
+dialog { width: min(560px, calc(100vw - 32px)); max-height: min(720px, calc(100vh - 32px)); padding: 0; overflow: auto; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 20px 50px rgba(25, 31, 33, .2); } dialog::backdrop { background: rgba(31, 36, 38, .28); }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 17px 18px; border-bottom: 1px solid var(--line); } .dialog-head h2 { margin: 0; font-size: 19px; }
+.dialog-head p { margin: 3px 0 0; color: var(--muted); font-size: 12px; } .dialog-body { padding: 18px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px 18px; } .detail-list { margin: 0; display: grid; grid-template-columns: 118px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.detail-list dt, .detail-list dd { margin: 0; padding: 10px 0; border-bottom: 1px solid #e4e7e6; } .detail-list dt { color: var(--muted); }
+.detail-list dd { min-width: 0; overflow-wrap: anywhere; } .code-text { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12px; }
+.modal-note { margin: 14px 0 0; padding: 10px 11px; border-left: 3px solid var(--blue); background: #f4f7fa; color: var(--muted); font-size: 12px; } .plan-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.plan-table th, .plan-table td { padding: 8px 6px; border-bottom: 1px solid #e4e7e6; text-align: left; vertical-align: top; } .plan-table th { color: var(--muted); font-size: 12px; font-weight: 500; }
+.plan-table td:last-child { text-align: right; white-space: nowrap; } .toast { position: fixed; left: 50%; bottom: 48px; z-index: 100; max-width: min(480px, calc(100vw - 32px)); padding: 10px 14px; border: 1px solid #202527; border-radius: 4px; background: #202527; color: #fff; font-size: 14px; transform: translateX(-50%); box-shadow: 0 8px 24px rgba(25, 31, 33, .18); }
+.loading-ring { width: 14px; height: 14px; display: inline-block; border: 2px solid #bdc6c8; border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); }
+} @media (max-width: 1180px) { .topbar { grid-template-columns: 178px minmax(0, 1fr) auto; padding: 0 20px; gap: 14px; }
+.nav-button { padding: 0 10px; } .app-main { padding: 18px 20px; }
+.resource-workspace { grid-template-columns: 220px minmax(0, 1fr) 286px; } .project-select { padding-left: 13px; }
+.content-row { grid-template-columns: 28px minmax(0, 1fr) 76px 72px 44px; gap: 6px; padding-left: 10px; } .column-guide { grid-template-columns: minmax(0, 1fr) 76px 72px 44px; padding-left: 10px; }
+.cleanup-summary { padding: 11px; } }
+@media (max-width: 900px) { .agent-grid, .overview-grid, .task-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { body { overflow: auto; font-size: 16px; } .app-shell { min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 0; }
+.topbar { position: relative; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; padding: 7px 14px 0; } .brand { min-height: 44px; }
+.brand span { display: none; } .main-nav { grid-column: 1 / -1; order: 3; width: calc(100% + 28px); margin-left: -14px; overflow-x: auto; border-top: 1px solid #edf0ef; }
+.nav-button { flex: 0 0 auto; padding: 0 12px; font-size: 14px; } .top-actions .mode-label { display: none; }
+.app-main { overflow: visible; padding: 16px 14px 22px; } #view-resources.active { height: auto; }
+.page-heading { min-height: 0; display: block; } .heading-copy p { max-width: 34em; }
+h1 { font-size: 24px; } .occupancy-figure { width: 100%; margin-top: 14px; }
+.alert-banner { align-items: flex-start; padding: 8px 6px 8px 10px; } .alert-banner p { padding: 4px 0; }
+.resource-workspace { display: block; overflow: visible; border-radius: 6px; } .pane { min-height: auto; display: block; border-left: 0 !important; border-bottom: 1px solid var(--line-strong); }
+.pane:last-child { border-bottom: 0; } .pane-body { overflow: visible; }
+.content-row { grid-template-columns: 32px minmax(0, 1fr) 44px; min-height: 74px; grid-template-rows: var(--control) auto; } .column-guide { display: none; }
+.mini-capacity { grid-column: 2 / 4; grid-row: 2; padding-bottom: 7px; } .capacity-value { float: right; }
+.capacity-track { margin-top: 7px; } .kind-label { display: none; }
+.check-label { grid-column: 1; grid-row: 1; } .item-copy { grid-column: 2; grid-row: 1; display: grid; align-content: center; }
+.content-row .row-menu { grid-column: 3; grid-row: 1; } .document-summary, .summary-cell strong { font-size: 24px; }
+.overview-summary { grid-template-columns: 1fr; } .overview-project { grid-template-columns: minmax(0, 1fr) 82px; }
+.overview-count { display: none; } .statusbar { position: sticky; bottom: 0; min-height: 44px; grid-template-columns: minmax(0, 1fr) auto; padding: 0 10px; }
+.status-last, .snapshot-label { display: none; } .status-primary { font-size: 12px; }
+.status-button { min-height: 44px; } .dialog-body { padding: 15px; }
+.detail-list { grid-template-columns: 1fr; } .detail-list dt { padding-bottom: 0; border-bottom: 0; }
+.detail-list dd { padding-top: 3px; } .dialog-actions { flex-wrap: wrap; }
+.dialog-actions .button { flex: 1 1 140px; } .toast { bottom: 44px; }
+}
+  </style>
+</head>
+<body>
+  <script type="application/json" id="scan-data">[
+    {"name":"simple-oa","root":"~/Workspace/simple-oa","bytes":91974348800,"items":[{"path":"backend/target","kind":"cargo_target","bytes":90494783488,"deletable":true},{"path":"frontend/node_modules","kind":"node_modules","bytes":1039884288,"deletable":true},{"path":".agents/skills/ui-ux-pro-max/scripts/__pycache__","kind":"py_cache","bytes":81920,"deletable":true},{"path":"mcp-servers/oa-operator/__pycache__","kind":"py_cache","bytes":12288,"deletable":true},{"path":".ruff_cache","kind":"ruff_cache","bytes":12288,"deletable":true},{"path":"backend/scripts/__pycache__","kind":"py_cache","bytes":0,"deletable":false}]},
+    {"name":"local-agent-studio","root":"~/Workspace/local_agent_studio","bytes":15651172352,"items":[{"path":"target","kind":"cargo_target","bytes":13691752448,"deletable":true},{"path":".dev-agent-dir/npm/node_modules","kind":"node_modules","bytes":125468672,"deletable":true},{"path":".cargo-home/registry/src/mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda/cc-1.8.0/src/target","kind":"cargo_target","bytes":61440,"deletable":false},{"path":".cargo-home/registry/src/mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda/cc-1.4.7/src/target","kind":"cargo_target","bytes":61440,"deletable":false},{"path":"scripts/__pycache__","kind":"py_cache","bytes":0,"deletable":false}]},
+    {"name":"hb_scf","root":"~/Workspace/hb_software/hb_scf","bytes":9808482304,"items":[{"path":"backend/target","kind":"cargo_target","bytes":7003873280,"deletable":true},{"path":"frontend-tenant/node_modules","kind":"node_modules","bytes":879874048,"deletable":true},{"path":"frontend-mobile/frontend-tenant/node_modules","kind":"node_modules","bytes":841998336,"deletable":true},{"path":"frontend/node_modules","kind":"node_modules","bytes":798142464,"deletable":true},{"path":"frontend-mobile/node_modules","kind":"node_modules","bytes":252661760,"deletable":true},{"path":".ruff_cache","kind":"ruff_cache","bytes":12288,"deletable":true}]},
+    {"name":"hb_ecom","root":"~/Workspace/hb_software/hb_ecom","bytes":45357125632,"items":[{"path":"backend/target","kind":"cargo_target","bytes":45104562176,"deletable":true},{"path":"frontend-tenant/node_modules","kind":"node_modules","bytes":221851648,"deletable":true},{"path":"scripts/__pycache__","kind":"py_cache","bytes":28672,"deletable":true}]},
+    {"name":"killtower","root":"~/Workspace/MyGame/killing_tower/tools/content-editor","bytes":96010240,"items":[{"path":"node_modules","kind":"node_modules","bytes":91811840,"deletable":true}]}
+  ]</script>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><strong>devtray</strong><span>本地工作台</span></div>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-button" type="button" data-view="overview">总览</button>
+        <button class="nav-button" type="button" data-view="resources" aria-current="page">资源</button>
+        <button class="nav-button" type="button" data-view="agents">Agent 与 Skills</button>
+        <button class="nav-button" type="button" data-view="tasks">任务记录</button>
+      </nav>
+      <div class="top-actions">
+        <span class="mode-label">演示模式</span>
+        <button class="icon-button" id="appMenuButton" type="button" aria-label="打开应用菜单" aria-haspopup="menu" aria-expanded="false"></button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="view" id="view-overview" hidden>
+        <div class="page-heading">
+          <div class="heading-copy">
+            <div class="kicker">缓存快照 · 2026-10-28 <span class="demo-mark">本地数据</span></div>
+            <h1>总览</h1>
+            <p>从已扫描的项目与目录开始，所有容量均来自同一份缓存快照。</p>
+          </div>
+          <div class="occupancy-figure" data-occupancy></div>
+        </div>
+        <div class="overview-summary">
+          <div class="summary-cell"><span>已扫描项目</span><strong id="overviewProjectsCount">05</strong><p>项目父目录</p></div>
+          <div class="summary-cell"><span>目录条目</span><strong id="overviewItemsCount">21</strong><p>含不可清理条目</p></div>
+          <div class="summary-cell"><span>扫描占用</span><strong id="overviewTotal">—</strong><p>按快照日志汇总</p></div>
+        </div>
+        <div class="overview-grid">
+          <section class="section-surface">
+            <div class="section-head">
+              <div><h2>项目占用</h2><p>按数据快照中的项目总量排序</p></div>
+              <button class="button quiet" type="button" data-view="resources">打开资源页</button>
+            </div>
+            <div id="overviewProjectList"></div>
+          </section>
+          <aside class="section-surface side-copy">
+            <h3>下一步</h3>
+            <p>先核对目录，再生成演示计划。当前页面只读取缓存并组织演示清单，不执行本地操作。</p>
+            <div class="side-actions">
+              <button class="button" type="button" data-view="resources">查看目录与占用 <span>5 个项目</span></button>
+              <button class="button" type="button" data-view="agents">检查 Agent 与 Skills <span>分别处理</span></button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view active" id="view-resources">
+        <div class="page-heading">
+          <div class="heading-copy">
+            <div class="kicker">扫描缓存 · 2026-10-28 <span class="demo-mark">状态变更仅为演示</span></div>
+            <h1>资源</h1>
+            <p>选择项目检查目录；右侧清单跨项目保留，确认计划前不会执行清理。</p>
+          </div>
+          <div class="occupancy-figure" data-occupancy></div>
+        </div>
+
+        <div class="alert-banner" id="cacheAlert" role="status">
+          <span aria-hidden="true" data-icon="alert"></span>
+          <p>这是 2026-10-28 的本地扫描缓存，当前状态可能已经变化。原型不会读取、移动或删除真实文件。</p>
+          <button class="icon-button" id="closeAlert" type="button" aria-label="关闭缓存告警"></button>
+        </div>
+
+        <div class="resource-workspace">
+          <aside class="pane" aria-labelledby="projectsTitle">
+            <div class="pane-header">
+              <div><h2 id="projectsTitle">项目目录</h2><p>单项目查看</p></div>
+              <span class="pane-count" id="projectCount"></span>
+            </div>
+            <div class="pane-body">
+              <div id="projectList"></div>
+            </div>
+          </aside>
+
+          <section class="pane content-list" aria-labelledby="contentTitle">
+            <div class="pane-header">
+              <div><h2 id="contentTitle"></h2><p>小型容量条按项目占用比例显示</p></div>
+              <span class="pane-count" id="contentCount"></span>
+            </div>
+            <div class="column-guide" aria-hidden="true">
+              <span></span><span>目录</span><span>容量</span><span>类型</span><span></span>
+            </div>
+            <div class="pane-body" id="contentList"></div>
+          </section>
+
+          <aside class="pane" aria-labelledby="cleanupTitle">
+            <div class="pane-header">
+              <div><h2 id="cleanupTitle">待清理清单</h2><p>跨项目保留</p></div>
+              <span class="pane-count" id="cleanupCount"></span>
+            </div>
+            <div class="pane-body" id="cleanupBody">
+              <div class="selection-summary">
+                <div class="summary-label"><span>演示清单</span><span id="selectionProjectCount"></span></div>
+                <strong class="selection-total" id="selectionTotal">0 B</strong>
+                <p>扫描容量不等于可释放容量；不会删除真实目录。</p>
+              </div>
+              <div class="cleanup-list" id="cleanupList"></div>
+            </div>
+            <div class="pane-actions">
+              <button class="button primary" id="previewPlan" type="button"></button>
+              <button class="button danger-text" id="clearList" type="button">清空清单</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-agents" hidden>
+        <div class="page-heading">
+          <div class="heading-copy">
+            <div class="kicker">本地检测与上游检查分离 <span class="demo-mark">检查结果为演示</span></div>
+            <h1>Agent 与 Skills</h1>
+            <p>本地 Agent 与 Skills 使用不同检查入口；页面不连接网络，也不会安装或更新。</p>
+          </div>
+        </div>
+        <div class="agent-grid">
+          <section class="section-surface check-section">
+            <div class="section-head">
+              <div><h2>本地 Agent</h2><p>仅检查 executable 与本地版本输出</p></div>
+              <span class="status-chip" id="agentSectionStatus">待重新检测</span>
+            </div>
+            <div class="check-body">
+              <p class="check-intro">当前桌面 PATH 可能漏掉位于 <span class="code-text">~/bin</span> 的可执行文件。这里只做本地检测，不查询通用更新。</p>
+              <div id="agentList"></div>
+              <div class="check-note">版本只依赖命令的标准输出。原型未执行系统命令，也不会补写任何版本号。</div>
+              <div class="check-actions">
+                <button class="button primary" id="detectAgents" type="button"></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-surface check-section">
+            <div class="section-head">
+              <div><h2>Skills 上游</h2><p>独立检查，不混入 Agent 结果</p></div>
+              <span class="status-chip" id="skillSectionStatus">待检查上游</span>
+            </div>
+            <div class="check-body">
+              <p class="check-intro">只列出扫描快照中出现的当前项目技能。上游检查仅适用于支持 GitHub tree sha 的来源。</p>
+              <div id="skillList"></div>
+              <div class="skills-limit">此入口不是通用版本更新器；模拟检查不会联网、安装或改写技能文件。</div>
+              <div class="check-actions" style="margin-top: 14px;">
+                <button class="button" id="checkSkills" type="button"></button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-tasks" hidden>
+        <div class="page-heading">
+          <div class="heading-copy">
+            <div class="kicker">当前演示会话 <span class="demo-mark">仅保存在页面内存</span></div>
+            <h1>任务记录</h1>
+            <p>记录本页产生的检查与计划预览事件，刷新后清空。</p>
+          </div>
+        </div>
+        <div class="task-grid">
+          <aside class="section-surface session-summary">
+            <h2>本次会话</h2>
+            <p>这里没有在线服务状态，也没有伪造的历史任务。</p>
+            <div class="session-stat"><span>状态变更</span><strong>演示</strong></div>
+            <div class="session-stat"><span>执行清理</span><strong>否</strong></div>
+            <div class="session-stat"><span>事件数量</span><strong id="eventCount">0</strong></div>
+            <div class="session-actions">
+              <button class="button danger-text" id="clearEvents" type="button">清空演示记录</button>
+            </div>
+          </aside>
+          <section class="section-surface">
+            <div class="section-head">
+              <div><h2>会话事件</h2><p>按最新操作显示</p></div>
+            </div>
+            <div class="event-list" id="eventList"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <div class="status-primary"><span class="status-dot"></span><span id="globalStatus">演示工作台就绪</span></div>
+      <div class="status-last" id="lastStatus">缓存快照已载入，未执行文件操作</div>
+      <button class="status-button" id="trayButton" type="button">托盘与告警</button>
+      <span class="snapshot-label">快照 2026-10-28</span>
+    </footer>
+  </div>
+
+  <div class="popover-menu" id="appMenu" role="menu" hidden>
+    <button class="menu-item" type="button" data-app-action="scan-help">扫描说明 <small>缓存口径</small></button>
+    <button class="menu-item" type="button" data-app-action="tray">托盘状态 <small>演示</small></button>
+    <div class="menu-separator"></div>
+    <button class="menu-item" type="button" data-app-action="reset">重置演示状态</button>
+  </div>
+
+  <div class="context-menu" id="contextMenu" role="menu" hidden></div>
+
+  <dialog id="overlayDialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head">
+      <div><h2 id="dialogTitle"></h2><p id="dialogSubtitle"></p></div>
+      <button class="icon-button" type="button" data-close-dialog aria-label="关闭对话框"></button>
+    </div>
+    <div class="dialog-body" id="dialogBody"></div>
+    <div class="dialog-actions" id="dialogActions"></div>
+  </dialog>
+
+  <div class="toast" id="toast" hidden role="status"></div>
+
+  <script>
+    const projects = JSON.parse(document.getElementById("scan-data").textContent);
+    const kindNames = {
+      cargo_target: "Rust 构建",
+      node_modules: "Node 依赖",
+      py_cache: "Python 缓存",
+      ruff_cache: "Ruff 缓存"
+    };
+    const icons = {
+      menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
+      close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+      alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l9 17H3L12 3z"/><path d="M12 9v4M12 16.5v.1"/></svg>',
+      refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/></svg>',
+      plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M9 10h6M9 14h6M9 18h4"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>'
+    };
+
+    const initialCleanup = ["0:0", "1:0"];
+    const state = {
+      view: "resources",
+      activeProject: 0,
+      cleanup: new Set(initialCleanup),
+      alertVisible: true,
+      agentChecked: false,
+      agentBusy: false,
+      skillsChecked: false,
+      skillsBusy: false,
+      events: [],
+      context: null
+    };
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+    const totalBytes = projects.reduce((sum, project) => sum + project.bytes, 0);
+    const allItemCount = projects.reduce((sum, project) => sum + project.items.length, 0);
+    const selectedData = () => [...state.cleanup].map((key) => {
+      const [projectIndex, itemIndex] = key.split(":").map(Number);
+      return { key, projectIndex, itemIndex, project: projects[projectIndex], item: projects[projectIndex].items[itemIndex] };
+    }).filter((entry) => entry.project && entry.item);
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    })[character]);
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(bytes >= 10 * 1024 ** 3 ? 1 : 2)} GiB`;
+      if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+      return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    }
+    function clock() {
+      return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    }
+    function addEvent(text, detail = "演示操作 · 未调用后端") {
+      state.events.unshift({ time: clock(), text, detail });
+      if (state.events.length > 40) state.events.pop();
+      renderEvents();
+    }
+    function setStatus(message, detail = message) {
+      $("#globalStatus").textContent = message;
+      $("#lastStatus").textContent = detail;
+    }
+    let toastTimer;
+    function toast(message) {
+      const element = $("#toast");
+      element.textContent = message;
+      element.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { element.hidden = true; }, 2600);
+    }
+    function hydrateStaticIcons() {
+      $("#appMenuButton").innerHTML = icons.menu;
+      $("#closeAlert").innerHTML = icons.close;
+      $("#previewPlan").innerHTML = `${icons.plan}<span>计划预览</span>`;
+      $("#detectAgents").innerHTML = `${icons.refresh}<span>重新检测本地 Agent</span>`;
+      $("#checkSkills").innerHTML = `${icons.refresh}<span>单独检查 Skills 上游</span>`;
+      $$("[data-icon]").forEach((element) => { element.innerHTML = icons[element.dataset.icon] || ""; });
+      $("[data-close-dialog]").innerHTML = icons.close;
+    }
+    function renderOccupancy() {
+      $$("[data-occupancy]").forEach((container) => {
+        container.innerHTML = `
+          <div class="occupancy-meta"><span>扫描容量</span><strong>${formatBytes(totalBytes)}</strong></div>
+          <div class="occupancy-segments" aria-label="项目占用比例">
+            ${projects.map((project, index) => `<span title="${escapeHtml(project.name)} · ${formatBytes(project.bytes)}" style="width:${(project.bytes / totalBytes * 100).toFixed(2)}%;background:${["#164f90","#2569ac","#397cc0","#6193c7","#9bb8d5"][index]}"></span>`).join("")}
+          </div>
+          <div class="occupancy-meta" style="margin:6px 0 0"><span>5 个项目</span><span>扫描字节汇总</span></div>`;
+      });
+    }
+    function renderProjects() {
+      $("#projectCount").textContent = `${projects.length} 个`;
+      $("#projectList").innerHTML = projects.map((project, index) => `
+        <div class="project-row ${index === state.activeProject ? "active" : ""}" data-project-row="${index}" tabindex="0" aria-label="${escapeHtml(project.name)}，右键或按 Shift+F10 打开菜单">
+          <button class="project-select" type="button" data-project-select="${index}">
+            <span class="project-name-row"><span class="project-name">${escapeHtml(project.name)}</span><span class="project-size">${formatBytes(project.bytes)}</span></span>
+            <span class="project-path">${escapeHtml(project.root)}</span>
+            <span class="project-meta">${project.items.length} 个扫描目录 · 快照</span>
+          </button>
+          <button class="icon-button row-menu" type="button" data-project-menu="${index}" aria-label="${escapeHtml(project.name)} 的更多操作" aria-haspopup="menu">${icons.menu}</button>
+        </div>`).join("");
+      const active = projects[state.activeProject];
+      $("#contentTitle").textContent = active.name;
+      $("#contentCount").textContent = `${active.items.length} 个目录`;
+    }
+    function renderContent() {
+      const project = projects[state.activeProject];
+      $("#contentTitle").textContent = project.name;
+      $("#contentCount").textContent = `${project.items.length} 个目录`;
+      $("#contentList").innerHTML = project.items.map((item, index) => {
+        const key = `${state.activeProject}:${index}`;
+        const ratio = project.bytes ? Math.max(item.bytes === 0 ? 0 : 1.5, item.bytes / project.bytes * 100) : 0;
+        return `
+          <div class="content-row" data-item-row="${index}" aria-label="${escapeHtml(item.path)}，右键或按 Shift+F10 打开菜单">
+            <label class="check-label" title="${item.deletable ? "加入或移出演示清单" : "扫描结果标记为不可清理"}">
+              <input class="square-check" type="checkbox" data-item-check="${index}" ${state.cleanup.has(key) ? "checked" : ""} ${item.deletable ? "" : "disabled"} aria-label="${escapeHtml(item.path)}">
+            </label>
+            <button class="item-copy" type="button" data-item-detail="${index}">
+              <span class="item-path">${escapeHtml(item.path)}</span>
+              <span class="item-note">${item.deletable ? "可加入演示清单" : "扫描快照标记：不可清理"}</span>
+            </button>
+            <div class="mini-capacity">
+              <span class="capacity-value">${formatBytes(item.bytes)}</span>
+              <div class="capacity-track"><span class="capacity-fill" style="width:${Math.min(100, ratio).toFixed(2)}%"></span></div>
+            </div>
+            <span class="kind-label">${kindNames[item.kind] || escapeHtml(item.kind)}</span>
+            <button class="icon-button row-menu" type="button" data-item-menu="${index}" aria-label="${escapeHtml(item.path)} 的更多操作" aria-haspopup="menu">${icons.menu}</button>
+          </div>`;
+      }).join("");
+    }
+    function renderCleanup() {
+      const entries = selectedData();
+      const total = entries.reduce((sum, entry) => sum + entry.item.bytes, 0);
+      const projectCount = new Set(entries.map((entry) => entry.projectIndex)).size;
+      $("#cleanupCount").textContent = `${entries.length} 项`;
+      $("#selectionProjectCount").textContent = `${projectCount} 个项目`;
+      $("#selectionTotal").textContent = formatBytes(total);
+      $("#previewPlan").disabled = entries.length === 0;
+      $("#clearList").disabled = entries.length === 0;
+      if (!entries.length) {
+        $("#cleanupList").innerHTML = '<div class="empty-state"><div><strong>清单为空</strong><span>勾选中间列表中的目录后会保留在这里。</span></div></div>';
+        return;
+      }
+      $("#cleanupList").innerHTML = entries.map((entry) => `
+        <div class="cleanup-row" data-cleanup-key="${entry.key}" aria-label="${escapeHtml(entry.project.name)} 的 ${escapeHtml(entry.item.path)}">
+          <div class="cleanup-row-main">
+            <span class="cleanup-project">${escapeHtml(entry.project.name)}</span>
+            <span class="cleanup-path">${escapeHtml(entry.item.path)}</span>
+            <span class="cleanup-meta"><span>${kindNames[entry.item.kind] || escapeHtml(entry.item.kind)}</span><span>${formatBytes(entry.item.bytes)}</span></span>
+          </div>
+          <div class="cleanup-actions">
+            <button class="icon-button" type="button" data-remove-key="${entry.key}" aria-label="从演示清单移出 ${escapeHtml(entry.item.path)}">${icons.close}</button>
+          </div>
+        </div>`).join("");
+    }
+    function renderResources() {
+      renderProjects();
+      renderContent();
+      renderCleanup();
+      const alert = $("#cacheAlert");
+      alert.hidden = !state.alertVisible;
+    }
+    function renderOverview() {
+      $("#overviewProjectsCount").textContent = String(projects.length).padStart(2, "0");
+      $("#overviewItemsCount").textContent = String(allItemCount);
+      $("#overviewTotal").textContent = formatBytes(totalBytes);
+      $("#overviewProjectList").innerHTML = projects.map((project, index) => ({ project, index })).sort((a, b) => b.project.bytes - a.project.bytes).map(({ project, index }) => `
+        <button class="overview-project" type="button" data-overview-project="${index}">
+          <span><span class="overview-name">${escapeHtml(project.name)}</span><span class="overview-root">${escapeHtml(project.root)}</span></span>
+          <span class="overview-count">${project.items.length} 个目录</span>
+          <span class="overview-size">${formatBytes(project.bytes)}</span>
+        </button>`).join("");
+    }
+    function renderAgents() {
+      const agents = [
+        { executable: "pi", note: "需同时考虑 ~/bin/pi 与当前桌面 PATH" },
+        { executable: "codex", note: "本地 executable 检测项" },
+        { executable: "claude", note: "本地 executable 检测项" }
+      ];
+      $("#agentList").innerHTML = agents.map((agent) => `
+        <div class="agent-row">
+          <div><span class="executable">${agent.executable}</span><span class="row-detail">${agent.note}</span></div>
+          <span class="status-chip ${state.agentChecked ? "success" : ""}">${state.agentChecked ? "演示检测完成 · 版本未读取" : "待重新检测"}</span>
+        </div>`).join("");
+      $("#agentSectionStatus").textContent = state.agentChecked ? "演示结果已更新" : "待重新检测";
+      $("#agentSectionStatus").classList.toggle("success", state.agentChecked);
+      $("#detectAgents").disabled = state.agentBusy;
+      $("#detectAgents").innerHTML = state.agentBusy
+        ? '<span class="loading-ring"></span><span>正在检测本地 Agent</span>'
+        : `${icons.refresh}<span>重新检测本地 Agent</span>`;
+
+      $("#skillList").innerHTML = `
+        <div class="skill-row">
+          <div><span class="executable">ui-ux-pro-max</span><span class="row-detail">.agents/skills/ui-ux-pro-max · 来源检查方式：GitHub tree sha</span></div>
+          <span class="status-chip ${state.skillsChecked ? "success" : ""}">${state.skillsChecked ? "演示检查完成 · 未写入" : "待检查上游"}</span>
+        </div>`;
+      $("#skillSectionStatus").textContent = state.skillsChecked ? "演示结果已更新" : "待检查上游";
+      $("#skillSectionStatus").classList.toggle("success", state.skillsChecked);
+      $("#checkSkills").disabled = state.skillsBusy;
+      $("#checkSkills").innerHTML = state.skillsBusy
+        ? '<span class="loading-ring"></span><span>正在检查 Skills 上游</span>'
+        : `${icons.refresh}<span>单独检查 Skills 上游</span>`;
+    }
+    function renderEvents() {
+      $("#eventCount").textContent = state.events.length;
+      if (!state.events.length) {
+        $("#eventList").innerHTML = '<div class="empty-state task-empty"><div><strong>还没有演示事件</strong><span>切换项目、修改清单或运行检查后会出现在这里。</span></div></div>';
+        return;
+      }
+      $("#eventList").innerHTML = state.events.map((event) => `
+        <div class="event-item">
+          <span class="event-time">${event.time}</span><span class="event-dot"></span>
+          <div class="event-copy">${escapeHtml(event.text)}<small>${escapeHtml(event.detail)}</small></div>
+        </div>`).join("");
+    }
+    function switchView(view) {
+      if (!["overview", "resources", "agents", "tasks"].includes(view)) return;
+      state.view = view;
+      $$(".view").forEach((element) => {
+        const active = element.id === `view-${view}`;
+        element.hidden = !active;
+        element.classList.toggle("active", active);
+      });
+      $$(".nav-button").forEach((button) => {
+        if (button.dataset.view === view) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      document.title = `devtray · ${({ overview: "总览", resources: "资源", agents: "Agent 与 Skills", tasks: "任务记录" })[view]}`;
+      setStatus("已切换页面", ({ overview: "总览", resources: "资源", agents: "Agent 与 Skills", tasks: "任务记录" })[view]);
+      if (view === "resources") renderResources();
+      if (view === "agents") renderAgents();
+      if (view === "tasks") renderEvents();
+      closeMenus();
+    }
+    function toggleCleanup(key) {
+      const [projectIndex, itemIndex] = key.split(":").map(Number);
+      const item = projects[projectIndex]?.items[itemIndex];
+      if (!item?.deletable) {
+        toast("该目录在扫描快照中不可清理，未加入清单。");
+        return;
+      }
+      if (state.cleanup.has(key)) {
+        state.cleanup.delete(key);
+        setStatus("已移出演示清单", `${projects[projectIndex].name} · ${item.path}`);
+        addEvent("移出演示清单", `${projects[projectIndex].name} / ${item.path}`);
+      } else {
+        state.cleanup.add(key);
+        setStatus("已加入演示清单", `${projects[projectIndex].name} · ${item.path}`);
+        addEvent("加入演示清单", `${projects[projectIndex].name} / ${item.path}`);
+      }
+      renderContent();
+      renderCleanup();
+    }
+    function selectProject(index) {
+      if (!projects[index]) return;
+      state.activeProject = index;
+      renderProjects();
+      renderContent();
+      setStatus("已切换项目", projects[index].root);
+      addEvent("查看项目目录", `${projects[index].name} · ${projects[index].items.length} 个扫描目录`);
+    }
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+        else {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+        }
+        toast("路径已复制。");
+        setStatus("已复制路径", text);
+      } catch {
+        toast("当前浏览器未允许剪贴板访问；路径已显示在详情中。");
+      }
+    }
+    function dialogAction(label, handler, primary = false) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `button${primary ? " primary" : ""}`;
+      button.textContent = label;
+      button.addEventListener("click", handler);
+      return button;
+    }
+    function showDialog({ title, subtitle = "", body, actions = [] }) {
+      const dialog = $("#overlayDialog");
+      $("#dialogTitle").textContent = title;
+      $("#dialogSubtitle").textContent = subtitle;
+      $("#dialogBody").innerHTML = body;
+      const actionRoot = $("#dialogActions");
+      actionRoot.innerHTML = "";
+      if (!actions.length) actions = [{ label: "关闭", handler: () => dialog.close() }];
+      actions.forEach((action) => actionRoot.appendChild(dialogAction(action.label, action.handler, action.primary)));
+      dialog.showModal();
+    }
+    function closeDialogAndThen(callback) {
+      $("#overlayDialog").close();
+      callback?.();
+    }
+    function showScanHelp() {
+      showDialog({
+        title: "扫描说明",
+        subtitle: "缓存快照与演示状态的边界",
+        body: `
+          <dl class="detail-list">
+            <dt>数据来源</dt><dd>data.json，快照日期 2026-10-28</dd>
+            <dt>项目 / 目录</dt><dd>${projects.length} 个项目，${allItemCount} 个扫描目录</dd>
+            <dt>容量换算</dt><dd>按 1024 进制显示为 GiB / MiB / KB</dd>
+            <dt>页面行为</dt><dd>清单、预览与检查均在浏览器内模拟</dd>
+          </dl>
+          <p class="modal-note">扫描容量不等于可释放容量。原型不会读取当前磁盘，也不会调用清理、安装或更新命令。</p>`,
+        actions: [{ label: "知道了", handler: () => $("#overlayDialog").close(), primary: true }]
+      });
+    }
+    function showItemDetail(projectIndex, itemIndex) {
+      const project = projects[projectIndex];
+      const item = project?.items[itemIndex];
+      if (!item) return;
+      const previewPath = `${project.root.replace(/^~/, "/home/ferychen")}/${item.path}`;
+      showDialog({
+        title: "路径与目录详情",
+        subtitle: `${project.name} · 扫描缓存`,
+        body: `
+          <dl class="detail-list">
+            <dt>目录</dt><dd class="code-text">${escapeHtml(item.path)}</dd>
+            <dt>项目根目录</dt><dd class="code-text">${escapeHtml(project.root)}</dd>
+            <dt>绝对路径预览</dt><dd class="code-text">${escapeHtml(previewPath)}</dd>
+            <dt>扫描容量</dt><dd>${formatBytes(item.bytes)}</dd>
+            <dt>清理标记</dt><dd>${item.deletable ? "可加入演示清单" : "扫描快照标记为不可清理"}</dd>
+            <dt>副本漂移检查</dt><dd>未执行 · 原型不扫描副本</dd>
+          </dl>
+          <p class="modal-note">路径仍来自扫描结果；副本漂移属于二级详情，不参与主表状态。实际清理前仍需重新解析并确认绝对路径。</p>`,
+        actions: [
+          { label: "复制相对路径", handler: () => copyText(item.path) },
+          { label: "复制绝对路径预览", handler: () => copyText(previewPath), primary: true }
+        ]
+      });
+    }
+    function showProjectDetail(projectIndex) {
+      const project = projects[projectIndex];
+      showDialog({
+        title: "项目快照",
+        subtitle: project.name,
+        body: `
+          <dl class="detail-list">
+            <dt>根目录</dt><dd class="code-text">${escapeHtml(project.root)}</dd>
+            <dt>扫描容量</dt><dd>${formatBytes(project.bytes)}</dd>
+            <dt>目录数量</dt><dd>${project.items.length} 个</dd>
+            <dt>快照日期</dt><dd>2026-10-28</dd>
+            <dt>当前状态</dt><dd>缓存数据，页面未重新扫描</dd>
+          </dl>`,
+        actions: [{ label: "关闭", handler: () => $("#overlayDialog").close(), primary: true }]
+      });
+    }
+    function showPlanPreview() {
+      const entries = selectedData();
+      if (!entries.length) return;
+      const total = entries.reduce((sum, entry) => sum + entry.item.bytes, 0);
+      showDialog({
+        title: "计划预览",
+        subtitle: "演示确认 · 不执行清理",
+        body: `
+          <table class="plan-table">
+            <thead><tr><th>项目 / 目录</th><th>扫描容量</th></tr></thead>
+            <tbody>${entries.map((entry) => `<tr><td><strong>${escapeHtml(entry.project.name)}</strong><br><span class="code-text">${escapeHtml(entry.item.path)}</span></td><td>${formatBytes(entry.item.bytes)}</td></tr>`).join("")}</tbody>
+          </table>
+          <dl class="detail-list" style="margin-top:14px">
+            <dt>条目数量</dt><dd>${entries.length} 项</dd>
+            <dt>扫描容量汇总</dt><dd>${formatBytes(total)}</dd>
+            <dt>执行方式</dt><dd>仅生成页面内演示确认</dd>
+          </dl>
+          <p class="modal-note">确认后不会运行清理命令。扫描容量不代表一定能够释放，也不会创建真实计划文件。</p>`,
+        actions: [
+          { label: "返回修改", handler: () => $("#overlayDialog").close() },
+          { label: "确认演示计划", handler: () => closeDialogAndThen(() => {
+            setStatus("演示计划已确认", `${entries.length} 项 · 未执行清理`);
+            addEvent("确认演示计划", `${entries.length} 项 / ${formatBytes(total)} · 未执行清理`);
+            toast("演示计划已确认，没有删除任何文件。");
+          }), primary: true }
+        ]
+      });
+    }
+    function showTrayStatus() {
+      showDialog({
+        title: "托盘与告警状态",
+        subtitle: "页面内状态演示",
+        body: `
+          <dl class="detail-list">
+            <dt>托盘状态</dt><dd>演示会话可用 · 无真实后台进程</dd>
+            <dt>缓存告警</dt><dd>${state.alertVisible ? "显示中" : "已关闭，可恢复"}</dd>
+            <dt>通知边界</dt><dd>不伪造在线服务或安装状态</dd>
+            <dt>文件操作</dt><dd>未执行</dd>
+          </dl>
+          <p class="modal-note">关闭页面告警只改变原型状态；不会影响系统托盘或任何本地服务。</p>`,
+        actions: [
+          { label: "恢复缓存告警", handler: () => closeDialogAndThen(() => {
+            state.alertVisible = true;
+            renderResources();
+            setStatus("缓存告警已恢复", "演示状态 · 未读取磁盘");
+            addEvent("恢复缓存告警", "页面内演示状态");
+          }) },
+          { label: "关闭", handler: () => $("#overlayDialog").close(), primary: true }
+        ]
+      });
+    }
+    function openContextMenu(kind, projectIndex, itemIndex, event, anchor) {
+      const menu = $("#contextMenu");
+      const project = projects[projectIndex];
+      const item = itemIndex === null ? null : project.items[itemIndex];
+      state.context = { kind, projectIndex, itemIndex };
+      if (kind === "project") {
+        menu.innerHTML = `
+          <button class="menu-item" role="menuitem" type="button" data-context-action="select">切换到此项目</button>
+          <button class="menu-item" role="menuitem" type="button" data-context-action="copy-root">复制项目根路径</button>
+          <button class="menu-item" role="menuitem" type="button" data-context-action="project-detail">查看快照详情</button>`;
+      } else {
+        const key = `${projectIndex}:${itemIndex}`;
+        menu.innerHTML = `
+          <button class="menu-item" role="menuitem" type="button" data-context-action="toggle" ${item.deletable ? "" : "disabled"}>${state.cleanup.has(key) ? "从待清理清单移出" : "加入待清理清单"}</button>
+          <button class="menu-item" role="menuitem" type="button" data-context-action="copy-path">复制相对路径</button>
+          <div class="menu-separator"></div>
+          <button class="menu-item" role="menuitem" type="button" data-context-action="item-detail">路径与副本详情 <small>二级信息</small></button>`;
+      }
+      menu.hidden = false;
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      let x = anchor ? anchor.right - width : event.clientX;
+      let y = anchor ? anchor.bottom + 3 : event.clientY;
+      x = Math.max(6, Math.min(x, window.innerWidth - width - 6));
+      y = Math.max(6, Math.min(y, window.innerHeight - height - 6));
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+      requestAnimationFrame(() => menu.querySelector(".menu-item:not(:disabled)")?.focus());
+    }
+    function closeMenus() {
+      $("#appMenu").hidden = true;
+      $("#contextMenu").hidden = true;
+      $("#appMenuButton").setAttribute("aria-expanded", "false");
+      state.context = null;
+    }
+    function executeContextAction(action) {
+      const context = state.context;
+      if (!context) return;
+      const { kind, projectIndex, itemIndex } = context;
+      closeMenus();
+      if (kind === "project") {
+        if (action === "select") { selectProject(projectIndex); switchView("resources"); }
+        if (action === "copy-root") copyText(projects[projectIndex].root);
+        if (action === "project-detail") showProjectDetail(projectIndex);
+        return;
+      }
+      const key = `${projectIndex}:${itemIndex}`;
+      if (action === "toggle") toggleCleanup(key);
+      if (action === "copy-path") copyText(projects[projectIndex].items[itemIndex].path);
+      if (action === "item-detail") showItemDetail(projectIndex, itemIndex);
+    }
+    function resetDemo() {
+      state.activeProject = 0;
+      state.cleanup = new Set(initialCleanup);
+      state.alertVisible = true;
+      state.agentChecked = false;
+      state.agentBusy = false;
+      state.skillsChecked = false;
+      state.skillsBusy = false;
+      state.events = [];
+      renderResources();
+      renderAgents();
+      renderEvents();
+      addEvent("重置演示状态", "恢复初始项目与跨项目清单");
+      setStatus("演示状态已重置", "没有改动真实数据或文件");
+      toast("演示状态已重置。");
+    }
+
+    document.addEventListener("click", (event) => {
+      const viewButton = event.target.closest("[data-view]");
+      if (viewButton) switchView(viewButton.dataset.view);
+      const projectButton = event.target.closest("[data-project-select]");
+      if (projectButton) selectProject(Number(projectButton.dataset.projectSelect));
+      const projectMenu = event.target.closest("[data-project-menu]");
+      if (projectMenu) {
+        event.stopPropagation();
+        const index = Number(projectMenu.dataset.projectMenu);
+        $("#contextMenu").hidden = true;
+        openContextMenu("project", index, null, event, projectMenu.getBoundingClientRect());
+        return;
+      }
+      const itemMenu = event.target.closest("[data-item-menu]");
+      if (itemMenu) {
+        event.stopPropagation();
+        openContextMenu("item", state.activeProject, Number(itemMenu.dataset.itemMenu), event, itemMenu.getBoundingClientRect());
+        return;
+      }
+      const itemDetail = event.target.closest("[data-item-detail]");
+      if (itemDetail) showItemDetail(state.activeProject, Number(itemDetail.dataset.itemDetail));
+      const removeButton = event.target.closest("[data-remove-key]");
+      if (removeButton) toggleCleanup(removeButton.dataset.removeKey);
+      const overviewProject = event.target.closest("[data-overview-project]");
+      if (overviewProject) {
+        selectProject(Number(overviewProject.dataset.overviewProject));
+        switchView("resources");
+      }
+      const contextAction = event.target.closest("[data-context-action]");
+      if (contextAction) executeContextAction(contextAction.dataset.contextAction);
+      if (!event.target.closest("#appMenu") && !event.target.closest("#appMenuButton")) {
+        $("#appMenu").hidden = true;
+        $("#appMenuButton").setAttribute("aria-expanded", "false");
+      }
+      if (!event.target.closest("#contextMenu")) $("#contextMenu").hidden = true;
+    });
+    document.addEventListener("change", (event) => {
+      const checkbox = event.target.closest("[data-item-check]");
+      if (checkbox) toggleCleanup(`${state.activeProject}:${checkbox.dataset.itemCheck}`);
+    });
+    document.addEventListener("contextmenu", (event) => {
+      const projectRow = event.target.closest("[data-project-row]");
+      if (projectRow) {
+        event.preventDefault();
+        openContextMenu("project", Number(projectRow.dataset.projectRow), null, event);
+        return;
+      }
+      const itemRow = event.target.closest("[data-item-row]");
+      if (itemRow) {
+        event.preventDefault();
+        openContextMenu("item", state.activeProject, Number(itemRow.dataset.itemRow), event);
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+        const projectRow = event.target.closest("[data-project-row]");
+        const itemRow = event.target.closest("[data-item-row]");
+        if (projectRow || itemRow) {
+          event.preventDefault();
+          const rect = (projectRow || itemRow).getBoundingClientRect();
+          const anchor = { right: rect.right, bottom: rect.top + 44 };
+          openContextMenu(projectRow ? "project" : "item", projectRow ? Number(projectRow.dataset.projectRow) : state.activeProject, itemRow ? Number(itemRow.dataset.itemRow) : null, event, anchor);
+        }
+      }
+      if (event.key === "Escape") closeMenus();
+      if (event.target.closest("#contextMenu") && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        const items = $$("#contextMenu .menu-item:not(:disabled)");
+        const index = items.indexOf(document.activeElement);
+        const next = event.key === "ArrowDown" ? (index + 1) % items.length : (index - 1 + items.length) % items.length;
+        items[next]?.focus();
+      }
+    });
+
+    $("#appMenuButton").addEventListener("click", (event) => {
+      event.stopPropagation();
+      const menu = $("#appMenu");
+      $("#contextMenu").hidden = true;
+      menu.hidden = !menu.hidden;
+      $("#appMenuButton").setAttribute("aria-expanded", String(!menu.hidden));
+      if (!menu.hidden) {
+        const rect = $("#appMenuButton").getBoundingClientRect();
+        menu.style.left = `${Math.max(6, rect.right - menu.offsetWidth)}px`;
+        menu.style.top = `${rect.bottom + 4}px`;
+        requestAnimationFrame(() => menu.querySelector(".menu-item")?.focus());
+      }
+    });
+    $("#appMenu").addEventListener("click", (event) => {
+      const action = event.target.closest("[data-app-action]")?.dataset.appAction;
+      if (!action) return;
+      closeMenus();
+      if (action === "scan-help") showScanHelp();
+      if (action === "tray") showTrayStatus();
+      if (action === "reset") resetDemo();
+    });
+    $("#closeAlert").addEventListener("click", () => {
+      state.alertVisible = false;
+      renderResources();
+      setStatus("缓存告警已关闭", "可在底栏的“托盘与告警”中恢复");
+      addEvent("关闭缓存告警", "页面内演示状态");
+    });
+    $("#clearList").addEventListener("click", () => {
+      const count = state.cleanup.size;
+      if (!count) return;
+      state.cleanup.clear();
+      renderContent();
+      renderCleanup();
+      setStatus("演示清单已清空", `移出 ${count} 项 · 未删除文件`);
+      addEvent("清空演示清单", `移出 ${count} 项 · 未删除文件`);
+      toast("演示清单已清空，没有删除任何目录。");
+    });
+    $("#previewPlan").addEventListener("click", showPlanPreview);
+    $("#trayButton").addEventListener("click", showTrayStatus);
+    $("#detectAgents").addEventListener("click", () => {
+      if (state.agentBusy) return;
+      state.agentBusy = true;
+      renderAgents();
+      setStatus("正在重新检测本地 Agent", "演示检测 · 不执行系统命令");
+      setTimeout(() => {
+        state.agentBusy = false;
+        state.agentChecked = true;
+        renderAgents();
+        setStatus("本地 Agent 检测完成", "演示结果 · 未读取到版本号");
+        addEvent("重新检测本地 Agent", "PATH 与版本输出为演示，不读取真实版本");
+        toast("本地 Agent 检测演示完成，未伪造版本号。");
+      }, 720);
+    });
+    $("#checkSkills").addEventListener("click", () => {
+      if (state.skillsBusy) return;
+      state.skillsBusy = true;
+      renderAgents();
+      setStatus("正在检查 Skills 上游", "仅 GitHub tree sha 来源 · 演示");
+      setTimeout(() => {
+        state.skillsBusy = false;
+        state.skillsChecked = true;
+        renderAgents();
+        setStatus("Skills 上游检查完成", "演示结果 · 未联网、未写入");
+        addEvent("单独检查 Skills 上游", "ui-ux-pro-max · GitHub tree sha 模拟");
+        toast("Skills 上游检查演示完成，没有安装或更新。");
+      }, 880);
+    });
+    $("#clearEvents").addEventListener("click", () => {
+      state.events = [];
+      renderEvents();
+      setStatus("演示记录已清空", "其他页面状态保持不变");
+      toast("本次会话的演示记录已清空。");
+    });
+    $("[data-close-dialog]").addEventListener("click", () => $("#overlayDialog").close());
+    $("#overlayDialog").addEventListener("click", (event) => {
+      if (event.target === $("#overlayDialog")) $("#overlayDialog").close();
+    });
+
+    hydrateStaticIcons();
+    renderOccupancy();
+    renderOverview();
+    renderResources();
+    renderAgents();
+    addEvent("载入本地缓存快照", `${projects.length} 个项目 / ${allItemCount} 个目录 · 2026-10-28`);
+    renderEvents();
+  </script>
+</body>
+</html>

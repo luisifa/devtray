@@ -1,0 +1,35 @@
+[
+  {
+    "direction": 1,
+    "selection_changes": true,
+    "agent_nav": true,
+    "overview": true,
+    "sizes": [
+      "\"{\\\"width\\\":1040,\\\"scroll\\\":1040,\\\"body\\\":1040}\"",
+      "\"{\\\"width\\\":375,\\\"scroll\\\":375,\\\"body\\\":375}\""
+    ],
+    "errors": ""
+  },
+  {
+    "direction": 2,
+    "selection_changes": true,
+    "agent_nav": true,
+    "overview": true,
+    "sizes": [
+      "\"{\\\"width\\\":1040,\\\"scroll\\\":1040,\\\"body\\\":1040}\"",
+      "\"{\\\"width\\\":375,\\\"scroll\\\":375,\\\"body\\\":375}\""
+    ],
+    "errors": ""
+  },
+  {
+    "direction": 3,
+    "selection_changes": true,
+    "agent_nav": true,
+    "overview": true,
+    "sizes": [
+      "\"{\\\"width\\\":1040,\\\"scroll\\\":1040,\\\"body\\\":1040}\"",
+      "\"{\\\"width\\\":375,\\\"scroll\\\":375,\\\"body\\\":375}\""
+    ],
+    "errors": ""
+  }
+]

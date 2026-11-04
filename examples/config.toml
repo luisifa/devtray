@@ -10,6 +10,9 @@ notify_debounce_s = 60
 
 [[project]]
 name = "my-app"
+# Optional project root; disk scanning and Git discovery use it.
+# 可选项目根；资源扫描与 Git 仓库识别以它为准。
+# root = "~/Workspace/my-app"
 
 [[project.service]]
 name = "backend"

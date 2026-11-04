@@ -1,6 +1,6 @@
 [package]
 name = "devtray"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Linux tray manager for development services, with tmux, readable logs, and MCP for agents"
 authors = ["ferychen <482261@qq.com>"]

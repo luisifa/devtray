@@ -37,8 +37,10 @@ jobs:
           python3 tests/mcp.py
           python3 tests/interaction_fixes.py
           python3 tests/service_alerts.py
+          python3 tests/keyboard_interaction.py
           python3 tests/resource_workspace.py
           python3 tests/panel_assets.py
+          python3 tests/git_workspace.py
           python3 tests/agents_skills.py
           python3 tests/skills_check.py
           python3 tests/skills_install.py

@@ -1,6 +1,6 @@
 # devtray 仓库管理速记
 
-当前功能与验证结果见 [开发状态（2026-10-29）](development-status.md)。
+当前功能与验证结果见 [开发状态（2026-11-04）](development-status.md)。
 
 记录日期：2026-10-25。供本地开发、维护和发布时查阅。
 
@@ -8,7 +8,7 @@
 
 - GitHub：[luisifa/devtray](https://github.com/luisifa/devtray)，公开仓库。
 - 远程：`origin`，SSH 地址为 `git@github.com:luisifa/devtray.git`。
-- 默认分支：`main`；当前发布版本：**v0.1.1**。
+- 默认分支：`main`；当前版本：**v0.2.0**。
 - 自有代码、文档和自制资源采用 [MIT](../LICENSE)，第三方组件保留原有许可。
 - 主要支持 Linux；Rust 核心负责托盘、CLI、MCP 和 tmux 管理，Python／PySide6 提供可选桌面面板。
 - 目标：让开发服务便于启动、便于 Agent 调用，也让开发者随时能查看终端和日志。

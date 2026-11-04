@@ -2,7 +2,7 @@
 import json
 
 from PySide6.QtCore import Qt, QTimer, QEvent, QPoint
-from PySide6.QtGui import QColor, QCursor, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QCursor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QWidget, QFrame, QLabel, QPushButton, QLineEdit, QScrollArea,
     QVBoxLayout, QHBoxLayout, QGraphicsDropShadowEffect, QSizePolicy,
@@ -24,7 +24,11 @@ QPushButton { background: transparent; border: 1px solid transparent; border-rad
 QPushButton:hover { background: #39523d; border-color: #536f51; color: #f4f7e9; }
 QPushButton:focus { border-color: #b7ce8c; }
 QPushButton:pressed { background: #456346; }
-QPushButton:disabled { color: #6d8371; }
+QPushButton:disabled { color: #9cae9c; background: #263b2e; border-color: #3a5140; }
+QPushButton#quickAction:pressed { background: #52724e; border-color: #b0cb93; }
+QPushButton#quickOpen:pressed { background: #a6c57e; }
+QLabel#quickNotice[feedbackKind="error"] { color: #ffcfbe; background: #482f2a; border-color: #ac7864; }
+QPushButton#quickAction:focus, QPushButton#quickOpen:focus { border: 2px solid #d0e4a9; }
 QPushButton#quickPin:checked { background: #3b563d; border-color: #739263; color: #d9e7bc; }
 QPushButton#quickAction { background: #2c4433; border: 1px solid #3e5941; font-size: 14px; padding: 0; }
 QPushButton#quickAction:hover { background: #466047; border-color: #a2bf86; }
@@ -120,7 +124,7 @@ class ServiceRow(QFrame):
 
     def action_button(self, value, callback):
         b = button(value, callback, 'quickAction')
-        b.setFixedSize(29, 29)
+        b.setFixedSize(34, 34)
         return b
 
     def update_service(self, service):
@@ -159,8 +163,10 @@ class ServiceRow(QFrame):
         self.start_stop.setEnabled(not busy)
         self.restart.setEnabled(not busy)
         self.acknowledge.setEnabled(not busy)
+        self.acknowledge.setText('处理中…' if busy else '标记已读')
         if busy:
-            self.state.setText('正在执行…')
+            operation = self.menu.owner.pending_actions.get(service['name'])
+            self.state.setText({'start': '启动中…', 'stop': '停止中…', 'restart': '重启中…'}.get(operation, '正在执行…'))
 
     def toggle(self):
         self.menu.perform('stop' if self.service['state'] in LIVE else 'start', self.service['name'])
@@ -353,7 +359,7 @@ class QuickMenu(QWidget):
         self.notice_label.setWordWrap(True)
         self.notice_label.hide()
         body.addWidget(self.notice_label)
-        self.dismiss_notice_button = button('清除提示', owner.dismiss_notice)
+        self.dismiss_notice_button = button('关闭提示', owner.hide_notice)
         self.dismiss_notice_button.hide()
         body.addWidget(self.dismiss_notice_button)
         self.expand_button = button('切换完整面板    ↗', lambda: owner.present('full', remember=True), 'quickOpen')
@@ -366,8 +372,7 @@ class QuickMenu(QWidget):
         self.notice_timer.setSingleShot(True)
         self.notice_timer.timeout.connect(self.notice_label.hide)
         self.notice_timer.timeout.connect(self.dismiss_notice_button.hide)
-        QShortcut(QKeySequence('Escape'), self, self.hide)
-        QShortcut(QKeySequence('Ctrl+F'), self, self.search.setFocus)
+        owner.shortcut_manager.attach(self)
         owner.destroyed.connect(self.deleteLater)
         self.sync(owner.data)
 
@@ -418,7 +423,12 @@ class QuickMenu(QWidget):
             self.connection.setText('同步异常')
         self.notice_label.show()
         self.dismiss_notice_button.show()
-        self.notice_timer.start(8000 if error else 4000)
+        self.notice_timer.stop()
+        self.notice_label.setProperty('feedbackKind', 'error' if error else 'success')
+        self.notice_label.style().unpolish(self.notice_label)
+        self.notice_label.style().polish(self.notice_label)
+        if not error:
+            self.notice_timer.start(5000)
 
     def refresh(self):
         self.owner.refresh()

@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-11-04
 
 ### Interaction fixes
+- Refine borders, button states, progress and success/error feedback; add configurable window-local Linux-style shortcuts with conflict validation, disabling, reset, persistence and a settings editor that survives polling.
 - Make acknowledgement visible beside failed-service states and in project headings. Add a Log Center exception list with project/read-state filters, per-row log navigation and acknowledgement; preserve paused log selections and refresh after in-flight status reads.
 - Fix acknowledgement of retained failed services: add per-service actions and `devtray ack`, persist acknowledgements for the failed process, and reject stale UI confirmations after a new failed run. Keep exit codes and logs while clearing unread tray attention.
 
@@ -17,6 +18,13 @@
 - Add Agent/Skills context and action menus; move copy details out of the main table and clarify update scope.
 - Remove overview bulk start/stop buttons; keep bulk actions in service management.
 
+
+### Git workspace
+- Add the **Git** page and `devtray git`: map project roots to repositories (deduplicating shared repos), show branch, ahead/behind, changes and recent commits, and preview diffs.
+- Add guarded writes: commit only checked files (status is re-read first), push to the existing upstream with no force, and pull with `--ff-only`. Commit messages support multiple lines and `Ctrl+Enter`.
+- Add a background "pull all projects" job: pulls repository by repository and skips dirty repos, repos with an operation in progress, missing upstreams, non-Git projects, and dangerously wide roots. The summary reports updated / up-to-date / skipped / failed with per-repository reasons.
+- Git commands are non-interactive (HTTPS terminal prompts disabled, SSH `BatchMode`). Batch pulling is disabled when the repository root is `/`, the home directory, or `~/Workspace`.
+- Add the Git shortcut (`Ctrl+4`); Agent & Skills and Log Center move to `Ctrl+5` and `Ctrl+6`, with page indices updated.
 
 ### Resources and cleanup
 - Add `devtray skills install`: GitHub/bare-name precheck, explicit agents, pinned CLI, and post-install verification; the panel can install from a source.

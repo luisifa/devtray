@@ -7,19 +7,22 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QProcess, QSettings, QUrl, QLockFile, QDir, QEvent
-from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QDesktopServices, QKeySequence, QShortcut, QIcon
+from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QDesktopServices, QKeySequence, QIcon
 from quick_menu import QuickMenu
+from git_panel import GitPanelMixin
 from resource_panel import ResourcePanelMixin
 from resource_selection import human_bytes
 from panel_theme import STYLE
 from service_alert_panel import ServiceAlertsMixin, unread
+from shortcut_settings import ShortcutSettingsMixin
+from interaction_feedback import FeedbackToast
 
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QTreeWidget, QTreeWidgetItem,
     QScrollArea, QPlainTextEdit, QComboBox, QCheckBox, QFileDialog, QMessageBox,
-    QDialog, QDialogButtonBox, QFormLayout, QSplitter, QSizePolicy,
+    QDialog, QDialogButtonBox, QFormLayout, QSplitter, QSizePolicy, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QInputDialog, QMenu,
 )
 
@@ -203,7 +206,7 @@ class ServiceDialog(QDialog):
         self.error.show()
 
 
-class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
+class Panel(ResourcePanelMixin, GitPanelMixin, ServiceAlertsMixin, ShortcutSettingsMixin, QMainWindow):
     def __init__(self, binary, config, poll=True):
         super().__init__()
         self.binary, self.config = binary, config
@@ -225,8 +228,10 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         self.log_entries = []
         self.log_filter_key = None
         self.action_pending = set()
+        self.pending_actions = {}
         self.bulk_buttons = []
         self.init_resource_state()
+        self.init_git_state()
         self.active_job = None
         self.active_job_project = None
         self.active_job_kind = None
@@ -251,7 +256,7 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         side.addWidget(label('本地工作台', 'sideCaption'))
         side.addSpacing(12)
         self.nav = []
-        for index, title in enumerate(['总览', '服务管理', '资源', 'Agent 与 Skills', '日志中心', '工作台设置']):
+        for index, title in enumerate(['总览', '服务管理', '资源', 'Git', 'Agent 与 Skills', '日志中心', '工作台设置']):
             b = button(title, lambda checked=False, i=index: self.navigate(i), 'nav')
             b.setCheckable(True)
             side.addWidget(b)
@@ -260,7 +265,7 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         side.addLayout(row(label('工作目录', 'sideCaption'), None, button('+', self.add_service, 'nav')))
         self.project_search = QLineEdit()
         self.project_search.setPlaceholderText('筛选项目或服务…')
-        self.project_search.setStyleSheet('background:#263d33; color:#dce7e0; border:1px solid #3a5042;')
+        self.project_search.setObjectName('projectSearch')
         self.project_search.textChanged.connect(self.filter_tree)
         side.addWidget(self.project_search)
         self.tree = QTreeWidget()
@@ -281,25 +286,25 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         body.setSpacing(12)
         self.breadcrumb = label('工作台 / 总览', 'muted')
         self.compact_button = button('切换小面板', lambda: self.present('small', remember=True))
-        body.addLayout(row(self.breadcrumb, None, self.compact_button, button('刷新', self.refresh), button('＋ 添加服务', self.add_service, 'primary'), button('收回', self.hide_panel)))
-        self.banner = label('', 'errorBanner', True)
-        self.banner.hide()
-        self.dismiss_button = button('清除提示', self.dismiss_notice)
-        self.dismiss_button.setToolTip('清除提示并确认当前托盘告警；服务与日志保持原样')
-        self.dismiss_button.hide()
-        notice_row = row(self.banner, self.dismiss_button)
-        notice_row.setStretch(0, 1)
-        self.dismiss_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        body.addLayout(notice_row)
+        self.refresh_button = button('刷新', lambda: self.refresh(manual=True))
+        self.refresh_button.setObjectName('quiet')
+        self.add_service_button = button('＋ 添加服务', self.add_service, 'primary')
+        body.addLayout(row(self.breadcrumb, None, self.compact_button, self.refresh_button, self.add_service_button, button('收回', self.hide_panel, 'quiet')))
+        self.feedback = FeedbackToast(self, self.hide_notice)
+        self.banner = self.feedback.message
+        self.dismiss_button = self.feedback.close_button
         self.pages = QStackedWidget()
         body.addWidget(self.pages, 1)
         shell.addWidget(main, 1)
         self.build_overview()
         self.build_services()
         self.build_resources()
+        self.build_git()
         self.build_agents()
         self.build_logs()
+        self.init_shortcuts()
         self.build_settings()
+        self.update_shortcut_hints()
         self.footer = label('正在连接本机服务…', 'muted')
         self.ack_all_button = button('全部异常标记已读', self.dismiss_notice)
         self.ack_all_button.setEnabled(False)
@@ -312,9 +317,6 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         if poll:
             self.timer.start(2000)
             QTimer.singleShot(0, self.refresh)
-        QShortcut(QKeySequence('Escape'), self, self.hide_panel)
-        QShortcut(QKeySequence('Ctrl+L'), self, lambda: self.navigate(4))
-        QShortcut(QKeySequence('Ctrl+R'), self, self.refresh)
         geometry = self.settings.value('geometry')
         if geometry:
             self.restoreGeometry(geometry)
@@ -439,6 +441,9 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
                 self.active_job = None
                 if self.active_job_kind == 'clean':
                     self.finish_resource_job(data)
+                elif self.active_job_kind == 'git':
+                    self.active_job_kind = None
+                    self.finish_git_job(data)
                 else:
                     self.active_job_kind = None
                     if state == 'done':
@@ -708,7 +713,7 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
             self.notify('先选中一个技能')
 
     def write_busy(self):
-        return bool(self.active_job or self.cleanup_busy or self.pending_write)
+        return bool(self.active_job or self.cleanup_busy or self.pending_write or getattr(self, 'git_busy', False))
 
     def begin_write(self):
         if self.write_busy():
@@ -995,10 +1000,22 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
 
     def build_settings(self):
         page = QWidget()
-        self.settings_layout = QVBoxLayout(page)
-        self.settings_layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(label('工作台设置', 'title'))
+        tabs = QTabWidget()
+        tabs.addTab(self.build_shortcut_settings(), '快捷键')
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        details = QWidget()
+        self.settings_layout = QVBoxLayout(details)
+        self.settings_layout.setContentsMargins(14, 14, 14, 14)
         self.settings_layout.setAlignment(Qt.AlignTop)
+        scroll.setWidget(details)
+        tabs.addTab(scroll, '工作台信息')
+        layout.addWidget(tabs, 1)
         self.pages.addWidget(page)
+        self.render_settings()
 
     def request(self, args, callback, payload=None, raw=False, timeout_ms=30000):
         process = QProcess(self)
@@ -1043,22 +1060,30 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
             process.write(json.dumps(payload).encode())
             process.closeWriteChannel()
 
-    def refresh(self):
+    def refresh(self, manual=False):
         if self.refreshing:
             return
         self.refreshing = True
+        if manual:
+            self.refresh_button.setEnabled(False)
+            self.refresh_button.setText('刷新中…')
         def done(data, error):
             self.refreshing = False
+            if manual:
+                self.refresh_button.setEnabled(True)
+                self.refresh_button.setText('刷新')
             if error:
                 self.notify('状态刷新失败，保留上次结果：' + error, error=True)
                 self.footer.setText('连接异常 · 正在重试')
                 return
             self.apply_data(data)
+            if manual:
+                self.notify('服务状态已刷新')
             if getattr(self, "_alert_refresh_needed", False):
                 self._alert_refresh_needed = False
                 QTimer.singleShot(0, self.refresh)
         self.request(['_panel-data'], done)
-        if self.page == 4:
+        if self.page == 5:
             self.refresh_logs()
 
     def apply_data(self, data):
@@ -1177,13 +1202,15 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
 
     def service_card(self, s, wide=False):
         box, l = card()
+        pending = self.pending_actions.get(s['name'])
+        box.setProperty('busy', s['name'] in self.action_pending)
         state, color, bg = STATES.get(s['state'], STATES['not_started'])
         if s['state'] == 'exited_failed' and s.get('alert_acknowledged'):
             state, color, bg = '异常退出 · 已读', '#69766d', '#eef1e9'
         badge = label('●  ' + state, 'badge')
         badge.setStyleSheet(f'color:{color};background:{bg};')
         name = button(s['service'], lambda: self.inspect(s['name']))
-        name.setStyleSheet('border:none; padding:0; text-align:left; font-size:16px; font-weight:700; background:transparent;')
+        name.setObjectName('serviceTitle')
         l.addLayout(row(name, None, label(s['project'], 'muted')))
         status_widgets = [badge]
         if unread(s):
@@ -1199,7 +1226,9 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         op = 'stop' if s['state'] in LIVE else 'start'
         action = button('■ 停止' if op == 'stop' else '▶ 启动', lambda: self.action(op, s['name']))
         action.setEnabled(s['name'] not in self.action_pending)
-        restart = button('↻', lambda: self.action('restart', s['name']))
+        if pending:
+            action.setText({'start': '启动中…', 'stop': '停止中…', 'restart': '重启中…'}[pending])
+        restart = button('重启', lambda: self.action('restart', s['name']))
         restart.setToolTip('重启服务')
         restart.setEnabled(s['name'] not in self.action_pending)
         actions.addWidget(action)
@@ -1245,12 +1274,16 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         l.addWidget(button('编辑服务配置', lambda: self.edit_service(s['name'])))
 
     def render_settings(self):
+        signature = (self.data.get('config'), self.data.get('logs_dir'), self.data.get('tmux_available'))
+        if getattr(self, '_settings_signature', None) == signature:
+            return
+        self._settings_signature = signature
         clear_layout(self.settings_layout)
         l = self.settings_layout
-        l.addWidget(label('工作台设置', 'title'))
+        l.addWidget(label('工作台信息', 'sectionTitle'))
         for title, text in [
             ('日志留存', '每次启动归档上一份日志；持续输出达到 10 MiB 时轮转。每项服务保留当前文件和最近 10 份归档（约 110 MiB 上限）。'),
-            ('窗口与快捷键', '左键展开 / 收回上次选择的面板；右键打开系统菜单。小面板底部与完整面板顶栏可切换模式，切换后自动记忆。实时终端显示 tmux 原始输出，分类日志支持筛选和历史。Esc 收回；Ctrl+L 打开日志，Ctrl+R 刷新状态。'),
+            ('窗口与快捷键', '左键展开 / 收回上次选择的面板；右键打开系统菜单。小面板底部与完整面板顶栏可切换模式，切换后自动记忆。实时终端显示 tmux 原始输出，分类日志支持筛选和历史。快捷键可在上方「快捷键」页自定义，F1 可查看当前映射。'),
             ('配置文件', self.data.get('config', str(self.config))),
             ('日志目录', self.data.get('logs_dir', '正在读取…')),
             ('工作台模块', '总览、服务管理与日志中心共享同一套服务配置。后续可继续增加数据库、任务和其他资源的管理页面。'),
@@ -1323,7 +1356,7 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
             if not service:
                 return
             self.project = service['project']
-            if self.page == 4:
+            if self.page == 5:
                 self.open_logs(value)
         if self.project:
             self.resource_selected = self.project
@@ -1344,17 +1377,19 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
         self.pages.setCurrentIndex(page)
         for i, b in enumerate(self.nav):
             b.setChecked(i == page)
-        self.breadcrumb.setText('工作台 / ' + ['总览', '服务管理', '资源', 'Agent 与 Skills', '日志中心', '设置'][page])
+        self.breadcrumb.setText('工作台 / ' + ['总览', '服务管理', '资源', 'Git', 'Agent 与 Skills', '日志中心', '设置'][page])
         if page == 2:
             self.load_resources()
         if page == 3:
-            self.load_agents_page()
+            self.load_git_page()
         if page == 4:
+            self.load_agents_page()
+        if page == 5:
             self.refresh_logs()
 
     def open_logs(self, name):
         self.log_service.setCurrentIndex(self.log_service.findData(name))
-        self.navigate(4)
+        self.navigate(5)
 
     def log_changed(self):
         self.update_log_terminal()
@@ -1475,9 +1510,11 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
                 after()
             return
         self.action_pending.add(name)
+        self.pending_actions[name] = op
         self.render_services()
         def done(message, error):
             self.action_pending.discard(name)
+            self.pending_actions.pop(name, None)
             self.notify(error or message.strip(), error=bool(error))
             self.refresh()
             self.render_services()
@@ -1557,21 +1594,20 @@ class Panel(ResourcePanelMixin, ServiceAlertsMixin, QMainWindow):
     def notify(self, text, error=False):
         if hasattr(self, 'quick_menu'):
             self.quick_menu.notice(text, error)
-        self.banner.setText(('⚠  ' if error else '') + text)
-        self.banner.show()
-        self.dismiss_button.show()
+        self.feedback.present(text, error)
+
+    def hide_notice(self):
+        self.feedback.clear()
+        if hasattr(self, 'quick_menu'):
+            self.quick_menu.notice_label.hide()
+            self.quick_menu.notice_timer.stop()
+            self.quick_menu.dismiss_notice_button.hide()
 
     def acknowledge_service(self, service):
         self.acknowledge_services([service])
 
     def dismiss_notice(self):
-        self.banner.clear()
-        self.banner.hide()
-        self.dismiss_button.hide()
-        if hasattr(self, 'quick_menu'):
-            self.quick_menu.notice_label.hide()
-            self.quick_menu.notice_timer.stop()
-            self.quick_menu.dismiss_notice_button.hide()
+        self.hide_notice()
         def done(_data, error):
             if error:
                 self.notify('清除托盘提示失败：' + error, error=True)

@@ -69,7 +69,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(len(self.w.cleanup_selection.entries),2)
         self.assertEqual(self.w.res_selection_tree.topLevelItemCount(),2)
         self.w.load_agents_page=lambda:None
-        self.w.navigate(3);self.w.show();APP.processEvents()
+        self.w.navigate(4);self.w.show();APP.processEvents()
         self.assertTrue(self.w.tree.isVisible())
         self.assertEqual(len(self.w.cleanup_selection.entries),2)
 

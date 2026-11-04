@@ -1,10 +1,10 @@
 # devtray 控制面板设计
 
-当前功能与验证结果见 [开发状态（2026-10-29）](development-status.md)。
+当前功能与验证结果见 [开发状态（2026-11-04）](development-status.md)。
 
 > 2026-10-28 更新：侧栏新增「资源」与「Agent 与 Skills」页，总览增加一行资产摘要；
 > 导航顺序变为 总览 / 服务管理 / 资源 / Agent 与 Skills / 日志中心 / 工作台设置，
-> 日志页索引顺延为 4。Agent 与 Skills 展示版本、来源与 lock 对账，并支持 Skills 写操作；副本状态在详情里查看。
+> 日志页索引相应顺延（2026-11-04 新增 Git 页后为 5）。Agent 与 Skills 展示版本、来源与 lock 对账，并支持 Skills 写操作；副本状态在详情里查看。
 > 资源页只消费 `_disk-cache`、`_disk-scan`、`_clean-plan`、`_clean-start`、`_job`，删除仍走
 > 六项检查与 job，不在 UI 里另开写路径。MCP 的 `devtray_clean` 复用同一 job 与 `_approve`
 > 审批进程；面板与 Agent 不会各自实现一套删除逻辑。Skills 表的「升级选中 / 删除选中」
@@ -143,3 +143,27 @@ Wayland 通常由合成器决定顶层窗口位置，无法保证菜单紧贴托
 ![日志中心异常处理](screenshots/log-exceptions.png)
 
 ![项目异常操作](screenshots/project-exceptions.png)
+
+
+## 交互细化与自定义快捷键（2026-10-29）
+
+设置页分为「快捷键」和「工作台信息」；轮询只更新信息，不重建快捷键编辑器。默认映射、配置隔离、录入与冲突处理见 [快捷键与操作反馈](keyboard-shortcuts.md)。`ui/keyboard_shortcuts.py` 管理校验与窗口内绑定，`ui/shortcut_settings.py` 管理设置和说明，`ui/interaction_feedback.py` 提供不挤动内容的成功／错误浮层。主面板和小面板复用映射，运行中的操作显示忙碌文字并防重复提交。
+
+原「清除提示」兼任确认告警，现将界面消息的「关闭提示」改为纯 UI 操作；服务／项目／全局已读按钮继续执行后端确认。成功消息 5 秒后收回，错误手动关闭。
+
+## Git 工作区（2026-11-04）
+
+侧栏顺序调整为 总览 / 服务管理 / 资源 / Git / Agent 与 Skills / 日志中心 / 工作台设置；
+「日志中心」页索引由 4 顺延为 5，设置页为 6，快捷键同步更新。
+
+- 页面三列：左侧仓库列表（项目、领先／落后、变更数），中间「变更 / 历史」标签页，右侧仓库信息、diff 预览与拉取／推送／打开目录。
+- 变更表默认全选，可只提交部分文件；提交信息支持多行，`Ctrl+Enter` 提交。每个仓库的未发送信息在切换仓库后保留。
+- 数据来自 `git status --porcelain=v2 --branch -z` 与 `git log`；不是仓库的项目也保留一行并显示原因，方便发现配置错误。
+- 写路径与 CLI 共用：`_git-commit`（stdin JSON）、`git push`、`git pull`、`_git-pull-start` / `_git-pull-run`。面板不另开写路径。
+- 提交只接受变更列表中的路径，后端执行前重新读取状态；拉取只允许 fast-forward；推送不 force。所有命令禁用交互提示。
+- 批量拉取是 jobs.rs 的后台任务，跳过脏仓库、变基／合并中、无上游、非 Git 和根过宽的项目；完成后在左栏汇总，并可查看逐项原因。
+- 同一仓库被多个项目引用时只显示一次，项目名合并展示，避免重复拉取。
+
+![Git 工作区，隔离演示数据](screenshots/workspace-git.png)
+
+![1040 窗口](screenshots/workspace-git-1040.png)

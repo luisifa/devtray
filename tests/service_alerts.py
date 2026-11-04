@@ -144,7 +144,7 @@ class AlertTests(unittest.TestCase):
 
     def test_log_exception_row_reads_one_failure_and_preserves_log_selection(self):
         self.add_other_failures()
-        self.w.navigate(4)
+        self.w.navigate(5)
         wait_for(lambda:not self.w.log_loading and bool(self.w.log_view.toPlainText()))
         self.assertEqual(self.w.alert_table.rowCount(),3)
         self.alert_action('hb_ecom/api','查看日志').click()
@@ -168,7 +168,7 @@ class AlertTests(unittest.TestCase):
         self.assertEqual(self.w.alert_table.item(0,1).text(),'api')
 
     def test_new_failure_reappears_unread_in_log_list_and_buttons_report_stale_ack(self):
-        self.w.navigate(4)
+        self.w.navigate(5)
         row=self.alert_row('hb_ecom/web')
         control=self.alert_action('hb_ecom/web','标记已读')
         self.snapshot.write_text('devtray-hb_ecom-web\t1\t1\t5252\n')
@@ -186,7 +186,7 @@ class AlertTests(unittest.TestCase):
 
     def test_empty_queue_and_sidebar_project_switch(self):
         self.add_other_failures()
-        self.w.navigate(4)
+        self.w.navigate(5)
         other=self.w.tree.topLevelItem(2)
         self.w.select_tree(other)
         self.assertEqual(self.w.alert_project.currentData(),'other')

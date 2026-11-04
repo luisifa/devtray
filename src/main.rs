@@ -9,6 +9,7 @@ mod cli;
 mod config;
 mod disk;
 mod form;
+mod git;
 mod icons;
 mod jobs;
 mod logs;
@@ -140,6 +141,12 @@ fn print_manual() {
   devtray logs <目标> [-n N] [--level warn,error] [--history]
   devtray open <目标>             用默认浏览器打开预览地址
   devtray edit <目标>             弹表单编辑这个服务（写回时保住注释，先校验再落盘）
+  devtray git status [--json]     各项目仓库状态（分支/领先/落后/变更）
+  devtray git log <项目> [-n N]   最近提交
+  devtray git diff <项目> [--path 文件]  查看改动
+  devtray git commit <项目> -m 信息 (--all | --path 文件...)
+  devtray git push <项目>         推送到已有上游（绝不 force）
+  devtray git pull <项目>|--all   仅 fast-forward；批量跳过脏仓库
   devtray check                   自检（配置/tmux/终端/通知/图标/单元）
   devtray mcp                     以 MCP server（stdio）运行，供 Claude Code / Codex 调用
   devtray help                    本说明
@@ -203,6 +210,7 @@ fn main() -> ExitCode {
         Some("disk") => disk::command(&args[1..]),
         Some("agents") => agents::command(&args[1..]),
         Some("skills") => skills::command(&args[1..]),
+        Some("git") => git::command(&args[1..]),
         Some("_agents") => agents::command(&["--json".to_string()]),
         Some("_skills") => skills::command(&["--json".to_string()]),
         Some("_skills-check") => skills::command(&["check".to_string(), "--json".to_string()]),
@@ -213,6 +221,9 @@ fn main() -> ExitCode {
         Some("_skills-restore") => skills::restore_command(&args[1..]),
         Some("_skills-install-plan") => skills::install_plan_command(&args[1..]),
         Some("_skills-install-start") => skills::install_start_command(&args[1..]),
+        Some("_git-commit") => git::commit_command(),
+        Some("_git-pull-start") => git::start_pull_command(&args[1..]),
+        Some("_git-pull-run") => git::run_pull_job(args.get(1)),
         Some("_disk-scan") => disk::scan_only(&args[1..]),
         Some("_disk-cache") => disk::cache_command(),
         Some("_clean") => clean::job_command(args.get(1)),
@@ -309,6 +320,12 @@ fn print_help() {
                              从快照恢复内容与副本（默认不改 lock）
   devtray skills install <来源> [--skill 名称] [--agent ID]... [--yes] [--dry-run]
                              安装技能（GitHub 预检，显式 -a，固定 CLI）
+  devtray git status [--json] 查看各项目仓库的分支、领先/落后与变更（只读）
+  devtray git log <项目> [-n N] [--json]       最近的提交
+  devtray git diff <项目> [--path 文件] [--staged]  查看改动
+  devtray git commit <项目> -m 信息 (--all | --path 文件...)
+  devtray git push <项目>     推送到已有上游（绝不 force）
+  devtray git pull <项目>|--all  仅 fast-forward；批量拉取跳过脏仓库
   devtray open <目标>        用默认浏览器打开该服务的预览地址
   devtray edit <目标>        弹出表单改这个服务（yad；无 yad 时用 $EDITOR）
   devtray check              自检依赖/配置/单元
@@ -645,6 +662,17 @@ fn check() -> ExitCode {
         say!("tmux     : {}", version);
     } else {
         problems.push("找不到 tmux".into());
+    }
+
+    if terminal::which("git") {
+        let version = std::process::Command::new("git")
+            .arg("--version")
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default();
+        say!("git      : {}", version);
+    } else {
+        say!("git      : 未找到（Git 页不可用，其余功能不受影响）");
     }
 
     match terminal::resolve("") {

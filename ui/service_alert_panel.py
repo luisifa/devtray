@@ -27,7 +27,7 @@ def action_button(text, callback):
 
 class ServiceAlertsMixin:
     def make_acknowledge_button(self, service):
-        result = action_button('标记已读', lambda: self.acknowledge_service(service))
+        result = action_button('处理中…' if service['name'] in self.action_pending else '标记已读', lambda: self.acknowledge_service(service))
         result.setAccessibleName('标记已读 ' + service['name'])
         result.setToolTip('确认本次异常并解除托盘提醒，保留退出码与日志')
         result.setEnabled(unread(service) and service['name'] not in self.action_pending)

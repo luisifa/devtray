@@ -46,9 +46,9 @@ with tempfile.TemporaryDirectory(prefix='devtray-assets-') as tmp:
     panel.render_resource_projects()
     panel.render_resource_detail()
 
-    assert panel.pages.count() == 6, panel.pages.count()
+    assert panel.pages.count() == 7, panel.pages.count()
     assert panel.nav[2].text().endswith('资源'), panel.nav[2].text()
-    assert 'Agent' in panel.nav[3].text(), panel.nav[3].text()
+    assert 'Agent' in panel.nav[4].text(), panel.nav[4].text()
     assert panel.res_table.rowCount() == 2
     assert panel.res_table.item(0, 1).text() == 'Node 依赖'
     assert panel.res_table.item(1, 6).text().startswith('只读')
@@ -168,8 +168,8 @@ assert calls[0] == ['_skills-plan', 'upgrade', 'alpha'], calls
 assert calls[1] == ['_skills-start', 'upgrade', 'alpha'], calls
 assert panel.active_job == 'job-skill' and panel.active_job_kind == 'skills'
 
-panel.navigate(3)
-assert panel.page == 3
+panel.navigate(4)
+assert panel.page == 4
 assert 'Agent' in panel.breadcrumb.text()
 
 calls = []
@@ -202,7 +202,7 @@ with tempfile.TemporaryDirectory(prefix='devtray-agents-live-') as tmp:
     os.environ['DEVTRAY_CONFIG'] = str(config)
     os.environ['XDG_STATE_HOME'] = str(home / 'state')
     panel = Panel(str(ROOT / 'target/debug/devtray'), str(config), poll=False)
-    panel.navigate(3)
+    panel.navigate(4)
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline and not hasattr(panel, 'skills_inventory'):
         APP.processEvents()

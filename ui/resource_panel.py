@@ -285,7 +285,9 @@ class ResourcePanelMixin:
         self.res_clean_button.setText('正在处理清理计划…' if busy else '预览清理计划')
         self.res_table.setEnabled(not busy)
         self.res_scan_all.setEnabled(not busy)
-        self.res_scan_current.setEnabled(not busy and bool(self.resource_selected))
+        scanning = self.resource_selected in self.resource_scanning
+        self.res_scan_current.setEnabled(not busy and bool(self.resource_selected) and not scanning)
+        self.res_scan_current.setText('扫描中…' if scanning else '重新扫描')
         self.res_stop_button.setVisible(busy and bool(self.cleanup_plans))
 
     def remove_cleanup_selection(self):
@@ -314,6 +316,7 @@ class ResourcePanelMixin:
         if not name or name in self.resource_scanning or self.cleanup_busy:
             return
         self.resource_scanning.add(name)
+        self.update_resource_controls()
         if name == self.resource_selected:
             self.res_caption.setText(f'正在扫描 {name}…')
         def done(data, error):
@@ -329,6 +332,7 @@ class ResourcePanelMixin:
                 self.render_resource_detail()
                 self.load_asset_summary()
             self.pump_scan_queue()
+            self.update_resource_controls()
         self.request(['_disk-scan', name] + (['--refresh'] if refresh else []), done, timeout_ms=600000)
 
     def scan_all(self):

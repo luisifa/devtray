@@ -4,7 +4,7 @@
 
 [简体中文](README.zh-CN.md) · [Configuration example](examples/config.toml) · [Changelog](CHANGELOG.md)
 
-[Development status (Chinese)](docs/development-status.md) · The latest workspace, resource, skill, and alert changes are documented under Unreleased.
+[Development status (Chinese)](docs/development-status.md) · See the [changelog](CHANGELOG.md) for the latest workspace, Git, resource, skill, and alert changes.
 
 A Linux tray app for managing development services such as `cargo run`, `bun run dev`, and `npm run dev`. Group services by project, start them from a desktop panel or an AI agent, and inspect the same processes and logs from either side.
 
@@ -21,12 +21,13 @@ Agents often leave development servers in background shells that are awkward to 
 - One-click access to the original tmux terminal, project directory, and browser preview.
 - A CLI and built-in stdio MCP server for agents, sharing the same service management code as the desktop UI.
 - Three-column project resource management with cross-project selection, combined preflight, sequential cleanup, and audit records.
+- A Git page that maps projects to repositories, shows branches, changes, and recent commits, commits selected files, pushes, pulls with fast-forward only, and batch-pulls all repositories with a per-repository summary.
 - Agent/Skills inventory, source and version detection, GitHub skill update checks, and skill installation/upgrade/removal with snapshots and drift protection.
 - Persistent service/project alert acknowledgement and a Log Center exception list; new failed runs alert again.
 
 Services and log collectors live in tmux. Hiding the panel, quitting the tray, or restarting devtray does not stop them. A reboot or logout that terminates the user's processes still can.
 
-**v0.1.1 targets Linux.** The interface and CLI messages are currently primarily Chinese; these instructions are available in English and Chinese. There is no native macOS or Windows app in this release.
+**v0.2.0 targets Linux.** The interface and CLI messages are currently primarily Chinese; these instructions are available in English and Chinese. There is no native macOS or Windows app in this release.
 
 ## Dependencies
 
@@ -37,9 +38,10 @@ Services and log collectors live in tmux. Hiding the panel, quitting the tray, o
 | Python 3 + `PySide6` (`QtWidgets`, `QtNetwork`) | Compact and full desktop panels; Python 3.10+ is recommended |
 | A terminal emulator | Opening an interactive tmux terminal |
 | `xdg-open` (`xdg-utils`) | Opening preview URLs and project directories |
+| `git` | Optional; Git page status, history, commit, push, and pull |
 | `notify-send` | Optional failure notifications |
 | `yad` | Optional tray/CLI service-editing forms; the Qt panel has its own forms |
-| Rust stable + Cargo + a C linker | Building from source; v0.1.1 was tested with Rust 1.97.1 |
+| Rust stable + Cargo + a C linker | Building from source; v0.2.0 was tested with Rust 1.97.1 |
 | Your project's runtimes and dependencies | Whatever the configured command needs: Rust, Node.js, Bun, Python, etc. |
 
 CLI and MCP service management do not require the tray, Python, or Qt. devtray does not install dependencies for your projects. Rust dependencies are pinned in [Cargo.lock](Cargo.lock); no Node.js frontend or frontend build server is needed. Python UI source and generated tray icons are embedded in the Rust binary.
@@ -99,10 +101,10 @@ Download a matching artifact from [GitHub Releases](https://github.com/luisifa/d
 
 ```bash
 # Debian / Ubuntu: apt also resolves package dependencies
-sudo apt install ./devtray_0.1.1-1_amd64.deb
+sudo apt install ./devtray_0.2.0-1_amd64.deb
 
 # Fedora / RPM-based systems
-sudo dnf install ./devtray-0.1.1-1.x86_64.rpm
+sudo dnf install ./devtray-0.2.0-1.x86_64.rpm
 
 # After installing either package
 mkdir -p "$HOME/.local/state/devtray"
@@ -157,7 +159,7 @@ Add another `[[project]]` block for another project, or more `[[project.service]
 | Field | Meaning |
 | --- | --- |
 | `name` | Required project/service identifier; targets use `project/service` |
-| `root` | Optional project root used by disk scanning and "open directory". Inferred from the common ancestor of `service.cwd` when omitted; single-cwd projects pointing at a subdirectory should set it explicitly. |
+| `root` | Optional project root used by disk scanning, Git repository discovery, and "open directory". Inferred from the common ancestor of `service.cwd` when omitted; single-cwd projects pointing at a subdirectory should set it explicitly. |
 | `cwd` | Required existing working directory; absolute paths and `~/...` are recommended |
 | `cmd` | Required command, executed using `sh -lc` inside tmux |
 | `autostart` | Default `false`; start when the tray starts if the service is not already running |
@@ -170,6 +172,8 @@ Add another `[[project]]` block for another project, or more `[[project.service]
 The tray reloads configuration automatically and retains the last valid configuration if a new edit is invalid. CLI/MCP calls read the file each time and report invalid configuration. Changing a running service's command/environment requires restarting that service; editing the file does not restart it automatically. `ready` is often more precise than `port`, because an unrelated process may already own that port.
 
 ## Everyday use
+
+Window-local shortcuts include `Ctrl+1…6` for modules, `Ctrl+,` for settings, `Ctrl+F` for search, `Ctrl+R` for refresh, `Ctrl+N` to add a service, and `F1` for the current shortcut sheet. Settings → Shortcuts lets you override, disable or restore bindings with conflict validation and immediate persistent application. See [shortcuts and interaction feedback (Chinese)](docs/keyboard-shortcuts.md). Success feedback auto-dismisses; errors stay until closed. Closing a message is separate from acknowledging service failures.
 
 After a service exits with an error, use **Mark as read** on its service card, compact-panel row, or tray service menu. The acknowledgement is persisted for that failed process: its exit code, terminal, and logs remain available, while the tray stops highlighting that acknowledged failure. A new failed run alerts again. The footer also offers **Mark all failures as read** without requiring an error banner. CLI: `devtray ack project/service`. Restart the tray and panel after installing an updated binary; compiling alone does not replace running processes.
 
@@ -196,6 +200,10 @@ devtray stop my-app/backend
 devtray terminal my-app/frontend  # Attach in your terminal emulator
 devtray open my-app/frontend      # Open browser preview
 devtray edit my-app/backend       # yad form, or editor fallback
+devtray git status [--json]       # branch, ahead/behind, changes per repository
+devtray git commit my-app -m "message" --path src/main.rs
+devtray git push my-app            # push to the existing upstream, never force
+devtray git pull --all             # batch fast-forward pull, skipping dirty repos
 devtray help
 ```
 
@@ -211,7 +219,7 @@ Targets accept `project/service`, a unique service name, or the tmux session nam
 | `exited_failed` | Process exited with a nonzero code; pane retained |
 | `exited_signal` | Pane records a signal exit |
 
-The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.1.1.
+The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.2.0.
 
 Use **Clear notice** in either panel or the tray menu to acknowledge current alerts and restore the tray badge. Service exit states and logs remain visible, and a new failure alerts again. Desktop notifications request an eight-second expiry.
 
@@ -240,6 +248,33 @@ devtray disk clean my-app --all --yes     # every eligible candidate in the proj
 ```
 
 Cleaning checks everything twice, once before confirmation and once after taking a cross-process lock. It refuses when a service is running, the candidate contains a mount point, files are tracked by git, the path escapes the project root, or a symlink is involved. Without `--kind`/`--path`/`--all` nothing is selected; `--dry-run` only prints the plan. Deletion is irreversible, and allocated bytes are not a promise of reclaimed space (hardlinks or an external store may still hold the data). Audit records go to `~/.local/state/devtray/audit.jsonl`; jobs live under `~/.local/state/devtray/jobs/`.
+
+## Git workspace
+
+The **Git** page maps each configured project root to a repository; projects sharing a repository are shown once. It displays the branch, upstream, ahead/behind counts, uncommitted changes, and the last 30 commits. The change list is selected by default and can be narrowed to specific files; the commit message supports multiple lines and `Ctrl+Enter` commits. The right pane previews the selected file's diff and provides pull, push, and open-directory actions.
+
+Safety rules:
+
+- A commit only stages files currently listed as changes. The backend re-reads status before committing and rejects paths that are outside the list or no longer changed.
+- A pull runs `git pull --ff-only` only. It never merges, rebases, or stashes; diverged history and conflicts are reported for you to resolve in a terminal.
+- A push targets the current branch's existing upstream and never forces. When no upstream exists, the hint is `git push -u origin <branch>`.
+- **Pull all projects** runs in the background, repository by repository. It skips repositories with uncommitted changes, an operation in progress (merge/rebase/cherry-pick), no upstream, a non-Git project root, or a dangerously wide root (`/`, home, `~/Workspace`). The summary reports updated / up-to-date / skipped / failed, with per-repository reasons available in the panel.
+- Git commands are non-interactive: HTTPS terminal prompts are disabled and SSH runs in `BatchMode`. Complete credential entry or first-time host-key confirmation in a terminal first.
+
+```bash
+devtray git status [--json]
+devtray git log my-app -n 20
+devtray git diff my-app --path src/main.rs
+devtray git commit my-app -m "feat: add Git workspace" --path src/main.rs
+devtray git commit my-app -m "..." --all
+devtray git push my-app
+devtray git pull my-app
+devtray git pull --all
+```
+
+The repository root comes from `git rev-parse --show-toplevel`, so a project root inside a repository still resolves correctly. One project currently maps to one repository; if a directory contains several independent repositories, split them into separate `[[project]]` entries. `git status` also lists non-Git projects with the reason, which helps catch configuration mistakes. The panel calls the same CLI commands; there is no separate write path.
+
+![Git workspace — demo data](docs/screenshots/workspace-git.png)
 
 ## Agents and skills
 
@@ -355,7 +390,7 @@ Add service definitions in the devtray config or UI; MCP has no add-service tool
 
 ## Build, package, and platform support
 
-| Platform | v0.1.1 support |
+| Platform | v0.2.0 support |
 | --- | --- |
 | Linux x86_64 | Primary tested platform; GNU and musl builds |
 | Linux ARM64 | Source/cross-compilation instructions below; needs validation on the target desktop |
@@ -420,8 +455,10 @@ cargo build --locked
 python3 tests/mcp.py
 python3 tests/interaction_fixes.py
 QT_QPA_PLATFORM=offscreen python3 tests/service_alerts.py
+QT_QPA_PLATFORM=offscreen python3 tests/keyboard_interaction.py
 QT_QPA_PLATFORM=offscreen python3 tests/resource_workspace.py
 QT_QPA_PLATFORM=offscreen python3 tests/panel_assets.py
+QT_QPA_PLATFORM=offscreen python3 tests/git_workspace.py
 python3 tests/agents_skills.py
 python3 tests/skills_check.py
 python3 tests/skills_install.py
@@ -472,7 +509,7 @@ Then run `systemctl --user daemon-reload` and `systemctl --user restart devtray.
 | `DEVTRAY_PYTHON` | Interpreter for the embedded Qt panels; default `python3` |
 | `TERMINAL` | Preferred terminal when `settings.terminal` is unset |
 
-v0.1.1 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
+v0.2.0 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
 
 ## License
 

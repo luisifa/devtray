@@ -4,7 +4,7 @@
 
 [English](README.md) · [配置示例](examples/config.toml) · [更新日志](CHANGELOG.zh-CN.md)
 
-[开发状态与下一期边界](docs/development-status.md) · 本轮新增能力记录在「未发布」中。
+[开发状态与下一期边界](docs/development-status.md) · 本版新增能力见[更新日志](CHANGELOG.zh-CN.md)。
 
 devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`、`bun run dev`、`npm run dev` 等命令按项目分组，通过桌面面板或 AI Agent 启停，并从同一个地方查看状态、终端和日志。
 
@@ -21,12 +21,13 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 - 一键打开原始 tmux 终端、项目目录和浏览器预览。
 - CLI 和内置 stdio MCP 服务，与桌面端共用服务管理逻辑。
 - 三列资源页扫描构建目录占用，跨项目选择与统一预检，串行清理并记录审计。
+- Git 页按项目识别仓库，查看分支、变更与最近提交；勾选文件提交、推送、ff-only 拉取，并支持一键批量拉取与逐项汇总。
 - Agent 与 Skills 页：版本、来源、lock 对账、副本漂移；技能安装/升级/删除带快照与漂移门禁。
 - 服务和项目范围的异常已读，日志中心集中筛选与处理，托盘同步恢复；新异常重新提醒。
 
 服务和日志采集器运行在 tmux 中。隐藏面板、退出托盘或重启 devtray，不会停止它们。但系统重启，以及会终止用户进程的注销操作，仍可能结束服务。
 
-**v0.1.1 面向 Linux。** 目前界面与命令行提示主要为中文，README 提供中英文版本；本版本没有原生 macOS／Windows 应用。
+**v0.2.0 面向 Linux。** 目前界面与命令行提示主要为中文，README 提供中英文版本；本版本没有原生 macOS／Windows 应用。
 
 ## 依赖
 
@@ -37,9 +38,10 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 | Python 3 + `PySide6`（`QtWidgets`、`QtNetwork`） | 小面板和完整桌面面板；建议 Python 3.10+ |
 | 终端模拟器 | 打开交互式 tmux 终端 |
 | `xdg-open`（`xdg-utils`） | 打开预览网址和项目目录 |
+| `git` | 可选；Git 页的状态、日志、提交、推送与拉取 |
 | `notify-send` | 可选，用于失败桌面通知 |
 | `yad` | 可选，用于托盘／CLI 的服务编辑表单；Qt 面板自带表单 |
-| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.1.1 本地验证使用 Rust 1.97.1 |
+| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.2.0 本地验证使用 Rust 1.97.1 |
 | 项目自身的运行时和依赖 | 配置命令实际需要的 Rust、Node.js、Bun、Python 等 |
 
 CLI／MCP 服务管理不依赖托盘、Python 或 Qt。devtray 不负责安装业务项目的依赖。Rust 依赖由 [Cargo.lock](Cargo.lock) 固定；没有 Node.js 前端构建步骤，也不需要前端开发服务器。Python 界面源码和生成好的托盘图标内嵌在 Rust 二进制中。
@@ -99,10 +101,10 @@ devtray status --json
 
 ```bash
 # Debian / Ubuntu：apt 会同时处理包依赖
-sudo apt install ./devtray_0.1.1-1_amd64.deb
+sudo apt install ./devtray_0.2.0-1_amd64.deb
 
 # Fedora / RPM 系统
-sudo dnf install ./devtray-0.1.1-1.x86_64.rpm
+sudo dnf install ./devtray-0.2.0-1.x86_64.rpm
 
 # 两种包安装后均执行
 mkdir -p "$HOME/.local/state/devtray"
@@ -157,7 +159,7 @@ url = "http://localhost:5173/"
 | 字段 | 含义 |
 | --- | --- |
 | `name` | 必填，项目／服务标识；完整目标名为 `项目/服务` |
-| `root` | 可选，项目根目录；资源扫描与「打开目录」以它为准。不写则用该 project 下 service.cwd 的公共祖先；`killtower` 这类单 cwd 子目录需要显式写 |
+| `root` | 可选，项目根目录；资源扫描、Git 仓库识别与「打开目录」以它为准。不写则用该 project 下 service.cwd 的公共祖先；`killtower` 这类单 cwd 子目录需要显式写 |
 | `cwd` | 必填且必须存在；建议绝对路径或 `~/...` |
 | `cmd` | 必填；在 tmux 中通过 `sh -lc` 执行 |
 | `autostart` | 默认 `false`；托盘启动时，若服务未运行则自动启动 |
@@ -170,6 +172,8 @@ url = "http://localhost:5173/"
 托盘自动重载配置，遇到非法配置时保留上一份可用配置。CLI／MCP 每次读取文件，非法时返回错误。修改运行中服务的命令或环境变量后，需要重启该服务；修改文件本身不会触发服务重启。`ready` 通常比 `port` 更准确，因为端口可能被另一个进程占用。
 
 ## 日常使用
+
+完整面板支持 Linux 桌面常见的窗口内快捷键：`Ctrl+1…6` 切换模块，`Ctrl+,` 打开设置，`Ctrl+F` 查找，`Ctrl+R` 刷新，`Ctrl+N` 添加，`F1` 查看当前快捷键。可在「工作台设置 → 快捷键」录入覆盖值、禁用操作和恢复默认；应用后即时生效并保存。完整方案见 [快捷键与操作反馈](docs/keyboard-shortcuts.md)。成功反馈会自动收回，错误保留到关闭；关闭提示与异常已读分别处理。
 
 服务异常退出后，可在服务卡片、小面板服务行或托盘该服务菜单点击「标记已读」。已读记录按本次退出的进程标识持久保存：退出码、终端与日志保留，托盘不再因这条已读异常标红；新一次运行再次失败仍会告警。底部另有「全部异常标记已读」，无需先出现顶部错误提示。CLI：`devtray ack hb_ecom/web`。更新程序后需重启托盘与面板进程，单独重新编译不会替换已运行的进程。
 
@@ -199,6 +203,10 @@ devtray edit my-app/backend       # yad 表单；缺少 yad 时回退到编辑�
 devtray agents [--json]           # 本机 Agent 版本与安装来源（只读）
 devtray skills [--json]           # Skills 清单、lock 对账与副本漂移（只读）
 devtray skills open               # 用文件管理器打开 ~/.agents/skills
+devtray git status [--json]       # 各项目仓库的分支、领先/落后与变更
+devtray git commit my-app -m "说明" --path src/main.rs
+devtray git push my-app            # 推送到已有上游，绝不 force
+devtray git pull --all             # 批量 ff-only 拉取，跳过脏仓库
 devtray help
 ```
 
@@ -214,7 +222,7 @@ devtray help
 | `exited_failed` | 进程以非零码退出，保留终端 pane |
 | `exited_signal` | 保留的 pane 记录为信号退出 |
 
-托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.1.1 尚无持续健康检查或服务崩溃自动重启。
+托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.2.0 尚无持续健康检查或服务崩溃自动重启。
 
 完整面板、小面板与托盘菜单提供「清除提示」：确认当前告警并恢复托盘颜色，服务的退出状态与日志保留。服务再次失败或出现新配置错误时会重新告警；系统通知请求 8 秒后过期。
 
@@ -241,6 +249,33 @@ devtray disk clean my-app --all --yes     # 清理该项目全部可删候选
 ```
 
 清理会在确认前和取得跨进程锁后各检查一次：有服务在运行、目录含挂载点、出现被 git 跟踪的文件、路径越界或含符号链接时直接拒绝。没有 `--kind`/`--path`/`--all` 时不会默认清空；`--dry-run` 只打印计划。删除是不可撤销的，分配空间也不等于删除后一定释放（硬链接/外部 store 可能仍占用）。审计写入 `~/.local/state/devtray/audit.jsonl`，任务状态写入 `~/.local/state/devtray/jobs/`。
+
+## Git 工作区
+
+完整面板的「Git」页按项目根目录识别仓库；多个项目指向同一仓库时只显示一次。页面展示分支、上游、领先／落后、未提交变更和最近 30 条提交。变更列表默认全选，可以只勾选部分文件提交；提交信息支持多行，`Ctrl+Enter` 直接提交。右侧显示所选文件的 diff，并提供拉取、推送和打开仓库目录。
+
+安全约定：
+
+- 提交只接受当前变更列表中勾选的文件；后端执行前重新读取状态，列表外或已变化的路径会被拒绝。
+- 拉取只使用 `git pull --ff-only`，不会自动合并、rebase 或 stash；本地分叉或文件冲突时提示到终端处理。
+- 推送只把当前分支推到已有上游，绝不 force；没有上游时提示先执行 `git push -u origin <分支>`。
+- 「拉取全部项目」是后台任务：按项目顺序拉取，跳过有未提交改动、正在变基／合并、没有上游、不是 Git 仓库或仓库根过宽（`/`、家目录、`~/Workspace`）的项目；完成后汇总「已更新 / 已最新 / 跳过 / 失败」，可查看逐项原因。
+- Git 命令不交互：禁用 HTTPS 终端提示，并使用 SSH `BatchMode`。需要输入密码或首次确认主机指纹时，先在终端完成认证。
+
+```bash
+devtray git status [--json]
+devtray git log my-app -n 20
+devtray git diff my-app --path src/main.rs
+devtray git commit my-app -m "feat: 增加 Git 工作区" --path src/main.rs
+devtray git commit my-app -m "..." --all
+devtray git push my-app
+devtray git pull my-app
+devtray git pull --all
+```
+
+仓库根由 `git rev-parse --show-toplevel` 确定，因此项目根位于仓库子目录时也能正确识别。一个项目目前对应一个仓库；若一个目录下有多个互相独立的仓库，请按仓库拆成多个 `[[project]]`。`git status` 会同时列出非 Git 项目及原因，方便检查配置。提交、推送和拉取都复用同一个 CLI 底座；面板只是调用这些命令。
+
+![Git 工作区，隔离演示数据](docs/screenshots/workspace-git.png)
 
 ## Agent 与 Skills
 
@@ -360,7 +395,7 @@ MCP 的写操作默认受 `mcp_writes` 控制：`ask` 时在用户桌面弹出 y
 
 ## 构建、打包与跨平台说明
 
-| 平台 | v0.1.1 支持情况 |
+| 平台 | v0.2.0 支持情况 |
 | --- | --- |
 | Linux x86_64 | 主要验证平台；支持 GNU 和 musl 构建 |
 | Linux ARM64 | 提供源码／交叉编译步骤，需在目标桌面实际验证 |
@@ -425,8 +460,10 @@ cargo build --locked
 python3 tests/mcp.py
 python3 tests/interaction_fixes.py
 QT_QPA_PLATFORM=offscreen python3 tests/service_alerts.py
+QT_QPA_PLATFORM=offscreen python3 tests/keyboard_interaction.py
 QT_QPA_PLATFORM=offscreen python3 tests/resource_workspace.py
 QT_QPA_PLATFORM=offscreen python3 tests/panel_assets.py
+QT_QPA_PLATFORM=offscreen python3 tests/git_workspace.py
 python3 tests/agents_skills.py
 python3 tests/skills_check.py
 python3 tests/skills_install.py
@@ -477,7 +514,7 @@ Environment=PATH=%h/.bun/bin:%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin
 | `DEVTRAY_PYTHON` | 运行内嵌 Qt 面板的解释器，默认 `python3` |
 | `TERMINAL` | 未配置 `settings.terminal` 时优先选择的终端 |
 
-v0.1.1 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
+v0.2.0 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
 
 ## 许可
 

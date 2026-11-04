@@ -28,7 +28,20 @@ fn launch_mode(
             include_str!("../ui/resource_selection.py"),
         ),
         ("resource_panel", include_str!("../ui/resource_panel.py")),
+        ("git_panel", include_str!("../ui/git_panel.py")),
         ("panel_theme", include_str!("../ui/panel_theme.py")),
+        (
+            "keyboard_shortcuts",
+            include_str!("../ui/keyboard_shortcuts.py"),
+        ),
+        (
+            "shortcut_settings",
+            include_str!("../ui/shortcut_settings.py"),
+        ),
+        (
+            "interaction_feedback",
+            include_str!("../ui/interaction_feedback.py"),
+        ),
         (
             "service_alert_panel",
             include_str!("../ui/service_alert_panel.py"),

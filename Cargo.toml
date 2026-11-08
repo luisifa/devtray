@@ -1,8 +1,8 @@
 [package]
 name = "devtray"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
-description = "Linux tray manager for development services, with tmux, readable logs, and MCP for agents"
+description = "Local development environment inventory and service manager, with readable logs and MCP for agents"
 authors = ["ferychen <482261@qq.com>"]
 license = "MIT"
 readme = "README.md"

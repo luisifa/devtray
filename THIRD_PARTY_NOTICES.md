@@ -8,7 +8,7 @@ license terms. / 项目 MIT 许可不替代第三方组件的原有许可。
 
 - Target: `x86_64-unknown-linux-musl`
 - Toolchain: `rustc 1.97.1 (8bab26f4f 2026-07-14)`
-- Cargo.lock SHA-256: `395deb3939ebc8d27f7a21cf5d7992ee56809b7bde2f52ac0274f827511be555`
+- Cargo.lock SHA-256: `ad63db7228934c7487a8e03b7102e2cb4faed0bb9318cf4ea6a251d82fc39bc0`
 - 85 third-party packages in the target's resolved dependency graph,
   including build-time tools and procedural macros. This is an inclusive list;
   it does not mean every package's code is present in the executable.

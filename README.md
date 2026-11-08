@@ -14,6 +14,8 @@ Agents often leave development servers in background shells that are awkward to 
 
 ## What you get
 
+- Local environment inventory through `devtray inventory --json`, MCP `devtray_inventory`, and **Settings → 本机环境**: paths, versions, probe results, sources, and collection time for Git, Rust/Cargo, Node, Bun, and registered agents. No WSL is required.
+- Deterministic log triage with `devtray logs <target> --digest`, preserving error codes, locations, and occurrence counts without calling a model.
 - Pine-green full workspace, compact panel, and native tray menu, with a persistent project/service tree, search, and collapse state.
 - Projects containing multiple services, with individual and project-wide start/stop/restart controls.
 - Readiness checks using log patterns or a TCP port; failure indicators and optional desktop notifications.
@@ -27,9 +29,11 @@ Agents often leave development servers in background shells that are awkward to 
 
 Services and log collectors live in tmux. Hiding the panel, quitting the tray, or restarting devtray does not stop them. A reboot or logout that terminates the user's processes still can.
 
-**v0.2.0 targets Linux.** The interface and CLI messages are currently primarily Chinese; these instructions are available in English and Chinese. There is no native macOS or Windows app in this release.
+**v0.3.0 provides the Linux desktop app and an Apple Silicon macOS CLI preview.** Windows native CLI code passes cross-compilation checks, but there is no Windows installer or native service supervisor yet. The interface and CLI messages are currently primarily Chinese.
 
 ## Dependencies
+
+The following desktop dependencies apply to Linux. Local tool inventory needs neither tmux nor a service configuration; the macOS CLI preview has separate instructions below.
 
 | Component | Required for |
 | --- | --- |
@@ -41,7 +45,7 @@ Services and log collectors live in tmux. Hiding the panel, quitting the tray, o
 | `git` | Optional; Git page status, history, commit, push, and pull |
 | `notify-send` | Optional failure notifications |
 | `yad` | Optional tray/CLI service-editing forms; the Qt panel has its own forms |
-| Rust stable + Cargo + a C linker | Building from source; v0.2.0 was tested with Rust 1.97.1 |
+| Rust stable + Cargo + a C linker | Building from source; v0.3.0 was tested with Rust 1.97.1 |
 | Your project's runtimes and dependencies | Whatever the configured command needs: Rust, Node.js, Bun, Python, etc. |
 
 CLI and MCP service management do not require the tray, Python, or Qt. devtray does not install dependencies for your projects. Rust dependencies are pinned in [Cargo.lock](Cargo.lock); no Node.js frontend or frontend build server is needed. Python UI source and generated tray icons are embedded in the Rust binary.
@@ -101,10 +105,10 @@ Download a matching artifact from [GitHub Releases](https://github.com/luisifa/d
 
 ```bash
 # Debian / Ubuntu: apt also resolves package dependencies
-sudo apt install ./devtray_0.2.0-1_amd64.deb
+sudo apt install ./devtray_0.3.0-1_amd64.deb
 
 # Fedora / RPM-based systems
-sudo dnf install ./devtray-0.2.0-1.x86_64.rpm
+sudo dnf install ./devtray-0.3.0-1.x86_64.rpm
 
 # After installing either package
 mkdir -p "$HOME/.local/state/devtray"
@@ -113,6 +117,31 @@ systemctl --user enable --now devtray.service
 ```
 
 Alternatively, unpack the Linux tarball and install its `devtray` executable into a directory on `PATH`. Tarballs include documentation and desktop assets but do not install them automatically. PySide6 is optional and must be installed separately for all formats. If you previously installed from source, its user unit takes precedence over the packaged unit; use `systemctl --user cat devtray` to check which executable it starts.
+
+### Apple Silicon macOS CLI preview
+
+Download `devtray-0.3.0-macOS-arm64-cli-preview.tar.gz` and `SHA256SUMS` from [v0.3.0](https://github.com/luisifa/devtray/releases/tag/v0.3.0). Compare the archive hash printed by `shasum -a 256` with its entry in the manifest, then extract:
+
+```bash
+shasum -a 256 devtray-0.3.0-macOS-arm64-cli-preview.tar.gz
+tar -xzf devtray-0.3.0-macOS-arm64-cli-preview.tar.gz
+cd devtray-0.3.0-macOS-arm64-cli-preview
+./devtray --version
+./devtray inventory --json
+```
+
+Inventory requires no config file, Python, Qt, or tmux. For service management, install tmux (for example, `brew install tmux`), create `~/.config/devtray/config.toml` using the service example below, then use `./devtray start <target>`, `status --json`, `logs <target>`, and `stop <target>`. Cloud tests cover inventory/MCP and tmux start, restart, stop, and archived logs on macOS arm64. This archive is a CLI preview: menu-bar/Finder integration, a signed/notarized .app or .dmg, macOS desktop actions, and disk cleanup are not provided. Intel Macs are not tested.
+
+## Local environment inventory
+
+```bash
+devtray inventory --json
+devtray capabilities
+```
+
+Every registered tool has a row, including missing tools. `found` means its version was parsed; `not_found` means no executable was found; `probe_failed` includes the path and failure reason. PATH entries take priority over supplementary user directories. Each version probe has a two-second deadline and a 64 KiB output limit. The panel keeps its previous snapshot if a refresh fails; it does not repeat collection on every service poll. Windows .cmd/.bat wrappers are currently identified but not executed for version probing.
+
+See [inventory details](docs/native-inventory.zh-CN.md) and [platform development design](docs/platform-adaptation.zh-CN.md). Inventory is read-only and independent of service management.
 
 ## Add a project
 
@@ -219,7 +248,7 @@ Targets accept `project/service`, a unique service name, or the tmux session nam
 | `exited_failed` | Process exited with a nonzero code; pane retained |
 | `exited_signal` | Pane records a signal exit |
 
-The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.2.0.
+The tray shows green for running/ready, yellow for starting, red for failure/configuration errors, and gray when inactive. Readiness is latched for a pane's lifetime. There is no continuous health check or crash auto-restart in v0.3.0.
 
 Use **Clear notice** in either panel or the tray menu to acknowledge current alerts and restore the tray badge. Service exit states and logs remain visible, and a new failure alerts again. Desktop notifications request an eight-second expiry.
 
@@ -363,6 +392,7 @@ Use `/usr/bin/devtray` for a distribution package, or the actual absolute path r
 
 | Tool | Arguments | Purpose |
 | --- | --- | --- |
+| `devtray_inventory` | None | Collect local tool paths, versions, probe statuses, capabilities, and timestamp without service configuration |
 | `devtray_status` | None | List services, machine states, commands, logs, and preview URLs |
 | `devtray_logs` | `target`; optional `lines`, `level`, `search`, `history`, `digest` | Read current or archived logs (default 80 lines); `digest` returns the compact triage (default 300 lines) |
 | `devtray_start` | `target` | Start/recreate a service, then return its new status |
@@ -399,14 +429,15 @@ Add service definitions in the devtray config or UI; MCP has no add-service tool
 
 ## Build, package, and platform support
 
-| Platform | v0.2.0 support |
+| Platform | v0.3.0 support |
 | --- | --- |
-| Linux x86_64 | Primary tested platform; GNU and musl builds |
-| Linux ARM64 | Source/cross-compilation instructions below; needs validation on the target desktop |
-| Windows | No native build; run the Linux CLI/MCP inside WSL2. GUI/tray support needs a suitable Linux desktop environment and is not validated |
-| macOS | No supported native build; use a Linux VM for this release |
+| Linux x86_64 | Desktop app, CLI/MCP, Debian/RPM and GNU/musl builds |
+| Linux ARM64 | Source/cross-compilation instructions below; target desktop validation required |
+| macOS arm64 | Native release CLI built and run in GitHub Actions; inventory/MCP and tmux lifecycle/log tests pass; CLI preview archive attached |
+| macOS Intel | Not tested; no release artifact |
+| Windows x64 | MSVC cross-compilation checks pass; native inventory implementation and cloud probe exist, but Windows runtime validation, supervisor and installer remain pending |
 
-The current implementation uses SNI/D-Bus, tmux, `/proc`, `xdg-open`, Unix sockets, and Linux desktop integration. Adding a Rust target alone does not provide native Windows/macOS support. WSL/VM sessions manage services inside that environment, not host-native processes.
+Linux desktop integration stays platform-specific. Windows is designed to work natively, with optional WSL2 environment connections planned; WSL is not required for local inventory. Changing environments, Windows service control, and macOS desktop actions are still under development. See [the native inventory boundary](docs/native-inventory.zh-CN.md).
 
 ### Native Linux build
 
@@ -518,7 +549,7 @@ Then run `systemctl --user daemon-reload` and `systemctl --user restart devtray.
 | `DEVTRAY_PYTHON` | Interpreter for the embedded Qt panels; default `python3` |
 | `TERMINAL` | Preferred terminal when `settings.terminal` is unset |
 
-v0.2.0 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
+v0.3.0 does not provide dependency ordering, crash auto-restart, CPU/memory monitoring, remote multi-user control, or management of existing systemd services. It is a local development companion.
 
 ## License
 

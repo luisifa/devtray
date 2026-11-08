@@ -1,6 +1,13 @@
 # 更新日志
 
-## 未发布
+## 0.3.0 - 2026-11-08
+
+### 原生环境采集与 macOS 命令行预览
+- 新增 `devtray inventory [--json]`、只读 MCP `devtray_inventory` 和「设置 → 本机环境」，报告 Git、Rust/Cargo、Node、Bun 与 Agent 的路径、版本、来源、明确探测状态和采集时间，无需服务配置或 WSL。
+- 并发版本探测增加单工具超时和输出上限；面板刷新失败保留旧快照。Windows 批处理包装脚本暂只识别，明确报告尚未支持版本探测。
+- 隔离 Linux 托盘依赖，增加宿主用户目录、可执行文件查找和 `devtray capabilities`。Windows MSVC 与 macOS arm64 CLI 已通过交叉编译检查。
+- 发布 macOS arm64 命令行预览包，在 GitHub Actions 原生构建并通过采集／MCP、真实 tmux 生命周期及日志回归测试。Windows 实际运行和 supervisor、可选 WSL 环境连接、Mac 桌面安装包仍在开发。
+- MCP Git 测试不再依赖宿主 Git 作者配置；tmux 测试不再写死 /usr/bin/tmux。
 
 ### 日志分诊
 - 新增 `devtray logs --digest` 与 MCP `devtray_logs { digest: true }`：确定性分诊，把几百行日志压成若干条问题，每条带错误码、`文件:行:列`、出现次数和最多两条样例。

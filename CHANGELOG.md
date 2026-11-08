@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-11-08
+
+### Native inventory and macOS CLI preview
+- Add `devtray inventory [--json]`, read-only MCP `devtray_inventory`, and Settings → 本机环境. Report Git, Rust/Cargo, Node, Bun and Agent paths, versions, sources, explicit probe results and collection time without a service configuration or WSL.
+- Bound concurrent version probes with per-tool timeouts and output limits. Preserve the last panel snapshot after refresh failure; report Windows batch wrappers as identified but not yet probed.
+- Isolate Linux tray dependencies and introduce native host paths, executable discovery and `devtray capabilities`. Windows MSVC and macOS arm64 CLI targets pass cross-compilation checks.
+- Ship a macOS arm64 CLI preview, built and executed in GitHub Actions with inventory/MCP and real tmux lifecycle/log regression tests. Windows runtime support and supervisor, optional WSL connections, and Mac desktop installers remain in development.
+- Make MCP Git tests independent of the host's Git author configuration and discover tmux without hard-coding /usr/bin/tmux.
 
 ### Log digest
 - Add `devtray logs --digest` and MCP `devtray_logs { digest: true }`: a deterministic triage that turns hundreds of lines into findings, each with the error code, `file:line:column`, occurrence count, and up to two samples.

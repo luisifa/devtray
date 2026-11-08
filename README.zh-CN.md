@@ -14,6 +14,8 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 
 ## 功能
 
+- 本机环境采集：`devtray inventory --json`、MCP `devtray_inventory` 和「设置 → 本机环境」，展示 Git、Rust/Cargo、Node、Bun 与现有 Agent 的路径、版本、来源、探测状态和采集时间，无需 WSL。
+- `devtray logs <目标> --digest` 确定性日志分诊，保留错误码、位置与出现次数，不调用模型。
 - 松绿色完整工作台、快捷小面板和系统托盘右键菜单，保留项目／服务树、搜索和折叠。
 - 按项目组织多个服务，支持单服务、项目级和全局启停／重启。
 - 日志正则或 TCP 端口就绪探测，失败状态和可选桌面通知。
@@ -27,9 +29,11 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 
 服务和日志采集器运行在 tmux 中。隐藏面板、退出托盘或重启 devtray，不会停止它们。但系统重启，以及会终止用户进程的注销操作，仍可能结束服务。
 
-**v0.2.0 面向 Linux。** 目前界面与命令行提示主要为中文，README 提供中英文版本；本版本没有原生 macOS／Windows 应用。
+**v0.3.0 提供 Linux 桌面应用，以及 Apple Silicon macOS 命令行预览包。** Windows 原生 CLI 已通过交叉编译检查，尚无 Windows 安装包和原生服务托管。界面与命令行提示目前主要为中文。
 
 ## 依赖
+
+下表的桌面依赖面向 Linux。本机工具采集不需要 tmux 或服务配置；macOS 命令行预览包的使用步骤见后文。
 
 | 依赖 | 用途 |
 | --- | --- |
@@ -41,7 +45,7 @@ devtray 是一个面向 Linux 的开发服务托盘管理器。把 `cargo run`�
 | `git` | 可选；Git 页的状态、日志、提交、推送与拉取 |
 | `notify-send` | 可选，用于失败桌面通知 |
 | `yad` | 可选，用于托盘／CLI 的服务编辑表单；Qt 面板自带表单 |
-| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.2.0 本地验证使用 Rust 1.97.1 |
+| Rust stable、Cargo 和 C 链接器 | 从源码构建；v0.3.0 本地验证使用 Rust 1.97.1 |
 | 项目自身的运行时和依赖 | 配置命令实际需要的 Rust、Node.js、Bun、Python 等 |
 
 CLI／MCP 服务管理不依赖托盘、Python 或 Qt。devtray 不负责安装业务项目的依赖。Rust 依赖由 [Cargo.lock](Cargo.lock) 固定；没有 Node.js 前端构建步骤，也不需要前端开发服务器。Python 界面源码和生成好的托盘图标内嵌在 Rust 二进制中。
@@ -101,10 +105,10 @@ devtray status --json
 
 ```bash
 # Debian / Ubuntu：apt 会同时处理包依赖
-sudo apt install ./devtray_0.2.0-1_amd64.deb
+sudo apt install ./devtray_0.3.0-1_amd64.deb
 
 # Fedora / RPM 系统
-sudo dnf install ./devtray-0.2.0-1.x86_64.rpm
+sudo dnf install ./devtray-0.3.0-1.x86_64.rpm
 
 # 两种包安装后均执行
 mkdir -p "$HOME/.local/state/devtray"
@@ -113,6 +117,31 @@ systemctl --user enable --now devtray.service
 ```
 
 也可以解压 Linux tar 包，将 `devtray` 放入 `PATH` 中的目录。tar 包附带文档和桌面资源，但不会自动安装它们。所有安装方式都需要另行安装可选的 PySide6，才能使用面板。若之前从源码安装过，用户目录中的单元优先于系统包单元；用 `systemctl --user cat devtray` 确认实际启动路径。
+
+### Apple Silicon macOS 命令行预览包
+
+从 [v0.3.0 发布页](https://github.com/luisifa/devtray/releases/tag/v0.3.0)下载 `devtray-0.3.0-macOS-arm64-cli-preview.tar.gz` 和 `SHA256SUMS`，对比 `shasum -a 256` 输出与清单中的对应条目，再解压运行：
+
+```bash
+shasum -a 256 devtray-0.3.0-macOS-arm64-cli-preview.tar.gz
+tar -xzf devtray-0.3.0-macOS-arm64-cli-preview.tar.gz
+cd devtray-0.3.0-macOS-arm64-cli-preview
+./devtray --version
+./devtray inventory --json
+```
+
+工具采集无需配置文件、Python、Qt 或 tmux。管理服务时，先安装 tmux（例如 `brew install tmux`），参考下文创建 `~/.config/devtray/config.toml`，再使用 `./devtray start <目标>`、`status --json`、`logs <目标>` 和 `stop <目标>`。macOS arm64 云端已实际通过采集／MCP、tmux 启动、重启、停止和历史日志测试。当前是命令行预览包：尚无菜单栏／Finder 集成、签名公证的 .app／.dmg、Mac 桌面动作和磁盘清理；Intel Mac 尚未验证。
+
+## 本机环境采集
+
+```bash
+devtray inventory --json
+devtray capabilities
+```
+
+每个登记工具都有一行，包含未找到的工具。`found` 表示已解析版本；`not_found` 表示未找到可执行文件；`probe_failed` 保留路径和失败原因。优先使用 PATH，再补查用户工具目录。单个版本探测限时两秒、输出上限 64 KiB。面板刷新失败保留旧快照，不会跟随服务轮询反复采集。Windows .cmd／.bat 包装脚本目前可识别路径，尚不执行版本探测。
+
+字段与边界见[本机环境采集说明](docs/native-inventory.zh-CN.md)，后续计划见[跨平台开发设计](docs/platform-adaptation.zh-CN.md)。采集只读，独立于服务管理。
 
 ## 添加项目和服务
 
@@ -222,7 +251,7 @@ devtray help
 | `exited_failed` | 进程以非零码退出，保留终端 pane |
 | `exited_signal` | 保留的 pane 记录为信号退出 |
 
-托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.2.0 尚无持续健康检查或服务崩溃自动重启。
+托盘以绿色表示运行／就绪，黄色表示启动中，红色表示失败或配置错误，灰色表示未运行。就绪状态在同一 pane 生命周期内锁存，不会因为启动日志滚走就退回「启动中」。v0.3.0 尚无持续健康检查或服务崩溃自动重启。
 
 完整面板、小面板与托盘菜单提供「清除提示」：确认当前告警并恢复托盘颜色，服务的退出状态与日志保留。服务再次失败或出现新配置错误时会重新告警；系统通知请求 8 秒后过期。
 
@@ -368,6 +397,7 @@ codex mcp list
 
 | 工具 | 参数 | 用途 |
 | --- | --- | --- |
+| `devtray_inventory` | 无 | 无需服务配置，采集本机工具路径、版本、探测状态、能力和时间戳 |
 | `devtray_status` | 无 | 列出服务、机器状态、命令、日志路径和预览 URL |
 | `devtray_logs` | `target`；可选 `lines`、`level`、`search`、`history`、`digest` | 读取当前或历史日志（默认 80 行）；`digest` 返回压缩分诊（默认 300 行） |
 | `devtray_start` | `target` | 启动／重建服务，并返回新状态 |
@@ -404,14 +434,15 @@ MCP 的写操作默认受 `mcp_writes` 控制：`ask` 时在用户桌面弹出 y
 
 ## 构建、打包与跨平台说明
 
-| 平台 | v0.2.0 支持情况 |
+| 平台 | v0.3.0 支持情况 |
 | --- | --- |
-| Linux x86_64 | 主要验证平台；支持 GNU 和 musl 构建 |
-| Linux ARM64 | 提供源码／交叉编译步骤，需在目标桌面实际验证 |
-| Windows | 无原生版本；可在 WSL2 内运行 Linux CLI／MCP。面板／托盘还需要合适的 Linux 桌面环境，尚未验证 |
-| macOS | 不提供受支持的原生构建；本版本可在 Linux 虚拟机中使用 |
+| Linux x86_64 | 桌面应用、CLI／MCP、Debian／RPM 与 GNU／musl 构建 |
+| Linux ARM64 | 提供源码／交叉编译步骤，需在目标桌面验证 |
+| macOS arm64 | GitHub Actions 已原生构建并运行 Release CLI；采集／MCP、tmux 生命周期和日志测试通过，附命令行预览包 |
+| macOS Intel | 尚未验证，无发布产物 |
+| Windows x64 | MSVC 交叉编译检查通过；已有原生采集实现和云端探针，Windows 实际运行、supervisor 与安装包仍待完成 |
 
-目前实现依赖 SNI／D-Bus、tmux、`/proc`、`xdg-open`、Unix socket 和 Linux 桌面集成。仅添加 Rust target 不会自动获得 Windows／macOS 原生支持。WSL／虚拟机内的 devtray 管理的是该环境内的服务，而非宿主系统原生进程。
+Linux 桌面集成保留平台实现。Windows 按原生运行设计，后续可选连接 WSL2；本机采集不依赖 WSL。环境切换、Windows 服务托管和 Mac 桌面动作仍在开发，详见[本机采集边界](docs/native-inventory.zh-CN.md)。
 
 ### Linux 原生构建
 
@@ -523,7 +554,7 @@ Environment=PATH=%h/.bun/bin:%h/.cargo/bin:%h/.local/bin:/usr/local/bin:/usr/bin
 | `DEVTRAY_PYTHON` | 运行内嵌 Qt 面板的解释器，默认 `python3` |
 | `TERMINAL` | 未配置 `settings.terminal` 时优先选择的终端 |
 
-v0.2.0 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
+v0.3.0 不提供服务依赖编排、崩溃自动重启、CPU／内存监控、远程多用户控制或已有 systemd 服务纳管；定位是本地开发助手。
 
 ## 许可
 

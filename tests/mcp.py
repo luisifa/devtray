@@ -56,6 +56,9 @@ with tempfile.TemporaryDirectory(prefix='devtray-mcp-') as tmp:
     repo = directory / 'repo'
     repo.mkdir()
     git(repo, 'init', '-q')
+    # MCP invokes git in its own process; do not rely on host-wide identity.
+    git(repo, 'config', 'user.name', 'tester')
+    git(repo, 'config', 'user.email', 'tester@example.com')
     (repo / 'a.txt').write_text('hello\n')
     git(repo, 'add', 'a.txt')
     git(repo, 'commit', '-qm', 'init')

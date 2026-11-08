@@ -99,3 +99,7 @@ CI 保留现有 verify → linux-packages。分别增加 windows-native-check �
 新增 `devtray inventory [--json]`、只读 MCP 工具 devtray_inventory 与“设置 → 本机环境”页。覆盖 Git、Rust/Cargo、Node/Bun 和现有 Agent 清单，返回实际调用路径、版本、来源、状态和时间戳；无需服务配置。已增加原生可执行文件探测测试和面板快照保留测试。具体字段、探测边界及未完成项见 [本机环境采集](native-inventory.zh-CN.md)。
 
 本阶段没有引入 WSL 依赖；Windows .cmd/.bat 目前只识别并报告，尚未执行版本脚本。原生 supervisor、环境切换、完整项目／Skills 聚合与安装包仍待后续实施。
+
+## 云构建实测记录
+
+提交 304dd39 的 [macOS arm64 云构建](https://github.com/luisifa/devtray/actions/runs/42447793926)已通过：Rust 原生 release 构建、本机环境采集及 MCP 无配置测试、真实 tmux 启停／重启／日志归档测试、许可证收集和产物上传。下载后的 tar.gz 校验和通过，包内可执行文件为 Mach-O arm64，执行权限保留。产物是 CLI 预览包，尚非桌面 .app / .dmg，也未验证 Finder／菜单栏体验。此记录取代前文对应功能“仅交叉检查”的验证状态。

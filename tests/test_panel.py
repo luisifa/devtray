@@ -53,6 +53,24 @@ class PanelTests(unittest.TestCase):
         APP.processEvents()
         self.directory.cleanup()
 
+    def test_inventory_refresh_and_failure_preserve_snapshot(self):
+        w = self.panel
+        snapshot = {'platform': 'windows', 'architecture': 'x86_64', 'collected_at': 1,
+                    'tools': [{'id': 'git', 'version': '8.7.6', 'status': 'found',
+                               'path': 'C:/工具/git.exe', 'source': 'path', 'reason': None},
+                              {'id': 'bun', 'version': None, 'status': 'probe_failed',
+                               'path': 'C:/工具/bun.exe', 'source': 'path', 'reason': '版本探测超时'}]}
+        w.request = lambda args, done, **kwargs: done(snapshot, None)
+        w.load_inventory()
+        self.assertEqual(w.inventory_table.rowCount(), 2)
+        self.assertEqual(w.inventory_table.item(0, 3).text(), 'C:/工具/git.exe')
+        self.assertEqual(w.inventory_table.item(1, 2).text(), '探测失败')
+        self.assertTrue(w.inventory_refresh.isEnabled())
+        w.request = lambda args, done, **kwargs: done(None, 'offline')
+        w.load_inventory()
+        self.assertEqual(w.inventory_table.rowCount(), 2)
+        self.assertIn('保留上次结果', w.inventory_summary.text())
+
     def test_real_filters_search_and_historical_logs(self):
         w = self.panel
         w.navigate(5)

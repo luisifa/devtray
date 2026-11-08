@@ -76,6 +76,9 @@ impl State {
 }
 
 fn run(args: &[&str]) -> Result<String, String> {
+    if cfg!(windows) {
+        return Err("Windows 原生服务托管尚未实现；不会调用 tmux 或 WSL".into());
+    }
     let out = Command::new("tmux")
         .args(args)
         .output()
@@ -215,6 +218,9 @@ pub fn exists(session: &str) -> bool {
 
 /// 启动；已存在会话则先清掉（含残留的死 pane）
 pub fn start(t: &Target) -> Result<(), String> {
+    if cfg!(windows) {
+        return Err("Windows 原生服务托管尚未实现；未创建日志或启动进程".into());
+    }
     if exists(&t.session) {
         let _ = run(&["kill-session", "-t", &t.session]);
     }

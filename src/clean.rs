@@ -858,7 +858,7 @@ pub fn job_command(id: Option<&String>) -> std::process::ExitCode {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::config::ProjectRoot;

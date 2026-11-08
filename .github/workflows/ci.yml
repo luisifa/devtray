@@ -34,6 +34,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          python3 tests/native_inventory.py
           python3 tests/mcp.py
           python3 tests/interaction_fixes.py
           python3 tests/service_alerts.py
@@ -83,8 +84,10 @@ jobs:
         include:
           - os: macos-15
             label: macos-arm64-cli
+            binary: target/aarch64-apple-darwin/debug/devtray
           - os: windows-2025
-            label: windows-x64-panel
+            label: windows-x64-native
+            binary: target/x86_64-pc-windows-msvc/debug/devtray.exe
     name: probe / ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
@@ -95,11 +98,24 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal
           rustc +1.97.1 -vV
           cargo +1.97.1 check --locked --all-targets --target aarch64-apple-darwin
+          cargo +1.97.1 build --locked --target aarch64-apple-darwin
       - if: runner.os == 'Windows'
-        uses: actions/setup-python@v5
+        name: Build native Windows CLI
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +1.97.1 build --locked --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./target/x86_64-pc-windows-msvc/debug/devtray.exe capabilities
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          architecture: x64
+      - name: Check native inventory without WSL or service configuration
+        env:
+          DEVTRAY_TEST_BINARY: ${{ matrix.binary }}
+        run: python tests/native_inventory.py
       - if: runner.os == 'Windows'
         shell: pwsh
         env:

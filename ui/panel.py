@@ -1013,9 +1013,54 @@ class Panel(ResourcePanelMixin, GitPanelMixin, ServiceAlertsMixin, ShortcutSetti
         self.settings_layout.setAlignment(Qt.AlignTop)
         scroll.setWidget(details)
         tabs.addTab(scroll, '工作台信息')
+        inventory = QWidget()
+        il = QVBoxLayout(inventory)
+        self.inventory_pending = False
+        self.inventory_summary = label('本机环境 · 尚未采集', 'muted')
+        self.inventory_refresh = button('采集本机环境', self.load_inventory, 'primary')
+        il.addLayout(row(self.inventory_summary, None, self.inventory_refresh))
+        self.inventory_table = QTableWidget(0, 5)
+        self.inventory_table.setHorizontalHeaderLabels(['工具', '版本', '状态', '路径', '来源 / 原因'])
+        self.inventory_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.inventory_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.inventory_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.inventory_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        il.addWidget(self.inventory_table)
+        tabs.addTab(inventory, '本机环境')
         layout.addWidget(tabs, 1)
         self.pages.addWidget(page)
         self.render_settings()
+
+    def load_inventory(self):
+        if self.inventory_pending:
+            return
+        self.inventory_pending = True
+        self.inventory_refresh.setEnabled(False)
+        self.inventory_summary.setText('正在采集本机环境…')
+        def done(data, error):
+            self.inventory_pending = False
+            self.inventory_refresh.setEnabled(True)
+            if error:
+                self.inventory_summary.setText('采集失败 · 表格保留上次结果')
+                self.notify('本机环境采集失败：' + error, error=True)
+                return
+            tools = data.get('tools', [])
+            self.inventory_table.setRowCount(len(tools))
+            states = {'found': '已确认', 'not_found': '未找到', 'probe_failed': '探测失败'}
+            sources = {'path': 'PATH', 'user_directory': '补充目录'}
+            for index, tool in enumerate(tools):
+                detail = sources.get(tool.get('source'), '')
+                if tool.get('reason'):
+                    detail += ' · ' + tool['reason']
+                values = [tool['id'], tool.get('version') or '—',
+                          states.get(tool['status'], tool['status']), tool.get('path') or '—', detail]
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    item.setToolTip(value)
+                    self.inventory_table.setItem(index, column, item)
+            stamp = datetime.fromtimestamp(data['collected_at']).strftime('%Y-%m-%d %H:%M:%S')
+            self.inventory_summary.setText(f"本机 · {data['platform']} / {data['architecture']} · {stamp}")
+        self.request(['inventory', '--json'], done, timeout_ms=15000)
 
     def request(self, args, callback, payload=None, raw=False, timeout_ms=30000):
         process = QProcess(self)

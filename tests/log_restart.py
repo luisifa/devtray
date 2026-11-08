@@ -1,10 +1,12 @@
 """Real tmux regression, isolated socket and configuration; never touches user services."""
-import json, os, pathlib, subprocess, tempfile, time
-BINARY = str(pathlib.Path('target/debug/devtray').resolve())
+import json, os, pathlib, shlex, shutil, subprocess, tempfile, time
+BINARY = str(pathlib.Path(os.environ.get('DEVTRAY_TEST_BINARY', 'target/debug/devtray')).resolve())
+TMUX = shutil.which('tmux')
+assert TMUX, 'tmux is required for this regression'
 with tempfile.TemporaryDirectory(prefix='devtray-regression-') as tmp:
     root = pathlib.Path(tmp)
     (root/'bin').mkdir()
-    (root/'bin/tmux').write_text(f'#!/bin/sh\nexec /usr/bin/tmux -L devtray-test-{os.getpid()} -f /dev/null "$@"\n')
+    (root/'bin/tmux').write_text(f'#!/bin/sh\nexec {shlex.quote(TMUX)} -L devtray-test-{os.getpid()} -f /dev/null "$@"\n')
     (root/'bin/tmux').chmod(0o755)
     cfg = root/'config.toml'
     cfg.write_text(f'[[project]]\nname="regression"\n[[project.service]]\nname="logger"\ncwd="{tmp}"\ncmd="printf \'INFO first-run\\nWARN keep-me\\nERROR failure\\n\'; sleep 30"\n')

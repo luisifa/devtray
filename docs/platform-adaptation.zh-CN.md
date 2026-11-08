@@ -82,3 +82,20 @@ devtray --environment <已登记的环境ID> status --json
 CI 保留现有 verify → linux-packages。分别增加 windows-native-check 和 macos-check；windows-package **只依赖原生校验，不依赖 linux-packages**。Windows 安装包名为 DevTray-<版本>-Windows-x64-Setup.exe，macOS 为 DevTray-<版本>-macOS-arm64.dmg。可选 WSL 组件另行取同一提交的 Linux 产物，独立测试和分发；真实 WSL2 的测试机不可用时标为“未验证”，不影响已验证的原生版发布。GUI 的模拟测试不能替代实际安装后检查。
 
 首个原生预览包不等待 WSL、交互终端或跨平台磁盘清理。上传安装包、SHA-256、平台能力表、捆绑 Python/Qt/插件的第三方声明、Actions run 和安装验证记录；公开发行前再走签名、公证及最终包复验。验收的核心问题始终是：**显示的环境信息，是否就是执行这次操作的那套环境？**
+
+## 实施记录：平台编译边界
+
+保底提交：067e26d。首批实现新增 src/platform.rs，并提供 `devtray capabilities` JSON 命令，声明当前本机能力；该接口尚未连接 UI 或 MCP，也不代表环境登记功能已经实现。
+
+- ksni 与 Linux 托盘代码限定 Linux；macOS arm64 和 Windows MSVC x64 的 `cargo check --locked --all-targets` 已在 Linux 主机交叉检查通过。有未使用代码警告，尚未做目标系统的链接／安装／运行验证。
+- 工具查找统一使用 split_paths；Windows 支持 PATHEXT 后缀，用户目录使用 USERPROFILE，本机配置／状态使用 LOCALAPPDATA 下的 DevTray。Linux 路径保持原样。Agent 发现已共用工具解析器；完整工具清单仍待实现。
+- Windows 不调用 tmux／WSL。服务托管、Skills 写入和磁盘扫描处于未实现状态；磁盘结果 complete=false 并带警告，大小字段不可用。macOS 未实现挂载边界，因此清理继续拒绝。
+- 手动 desktop-probe 增加 Windows 原生 CLI 构建及 capabilities 运行步骤。Linux 本地 100 项 Rust 测试和严格 clippy 已通过，Actions 尚未运行。
+
+下一步：建立完整原生工具采集，再实现 Windows supervisor、Mac 桌面入口和安装包。发布门槛仍以第 6 节的目标系统实际运行证据为准。
+
+## 实施记录：本机工具清单
+
+新增 `devtray inventory [--json]`、只读 MCP 工具 devtray_inventory 与“设置 → 本机环境”页。覆盖 Git、Rust/Cargo、Node/Bun 和现有 Agent 清单，返回实际调用路径、版本、来源、状态和时间戳；无需服务配置。已增加原生可执行文件探测测试和面板快照保留测试。具体字段、探测边界及未完成项见 [本机环境采集](native-inventory.zh-CN.md)。
+
+本阶段没有引入 WSL 依赖；Windows .cmd/.bat 目前只识别并报告，尚未执行版本脚本。原生 supervisor、环境切换、完整项目／Skills 聚合与安装包仍待后续实施。

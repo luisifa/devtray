@@ -3,7 +3,6 @@
 //! 这一版不执行升级、不联网查最新版本；只把"当前装了什么、从哪装的、该用什么命令升级"
 //! 如实列出来。写操作要等 Skills 写路径的门禁一起上线。
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::LazyLock;
@@ -114,6 +113,10 @@ pub struct AgentInfo {
     pub notes: Vec<String>,
 }
 
+pub(crate) fn inventory_specs() -> Vec<(&'static str, &'static str)> {
+    SPECS.iter().map(|spec| (spec.id, spec.bin)).collect()
+}
+
 pub fn detect() -> Vec<AgentInfo> {
     let mut out: Vec<AgentInfo> = SPECS
         .iter()
@@ -127,19 +130,12 @@ pub fn detect() -> Vec<AgentInfo> {
 }
 
 fn find_in_path(bin: &str) -> Option<PathBuf> {
-    search_dirs()
-        .into_iter()
-        .map(|dir| dir.join(bin))
-        .find(|candidate| {
-            candidate
-                .metadata()
-                .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-        })
+    crate::platform::find_executable_in(bin, search_dirs())
 }
 
 // A systemd or desktop launcher does not inherit an interactive shell's PATH.
 // Keep explicit PATH entries first; never execute shell startup files to discover tools.
-fn search_dirs() -> Vec<PathBuf> {
+pub(crate) fn search_dirs() -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|path| {
             std::env::split_paths(&path)
@@ -171,12 +167,25 @@ fn search_dirs() -> Vec<PathBuf> {
         "VOLTA_HOME",
         "BUN_INSTALL",
     ] {
-        if let Some(value) = std::env::var_os(variable) {
+        if let Some(value) = std::env::var_os(variable).filter(|v| !v.is_empty()) {
             dirs.push(PathBuf::from(value).join("bin"));
         }
     }
-    if let Some(value) = std::env::var_os("PNPM_HOME") {
+    if let Some(value) = std::env::var_os("PNPM_HOME").filter(|v| !v.is_empty()) {
         dirs.push(PathBuf::from(value));
+    }
+    #[cfg(windows)]
+    for variable in ["APPDATA", "LOCALAPPDATA"] {
+        if let Some(base) = std::env::var_os(variable) {
+            let base = PathBuf::from(base);
+            dirs.push(base.join("npm"));
+            dirs.push(base.join("Microsoft/WinGet/Links"));
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        dirs.push(PathBuf::from("/opt/homebrew/bin"));
+        dirs.push(PathBuf::from("/usr/local/bin"));
     }
     let mut seen = std::collections::HashSet::new();
     dirs.retain(|path| seen.insert(path.clone()));

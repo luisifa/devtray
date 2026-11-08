@@ -12,24 +12,29 @@ mod disk;
 mod form;
 mod git;
 mod icons;
+mod inventory;
 mod jobs;
 mod logs;
 mod mcp;
 mod notify;
 mod ops;
 mod panel;
+mod platform;
 mod proc;
 mod skills;
 mod terminal;
 mod tmux;
+#[cfg(target_os = "linux")]
 mod tray;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+#[cfg(target_os = "linux")]
 use ksni::blocking::TrayMethods;
 
 use config::{Config, default_config_path, state_dir};
+#[cfg(target_os = "linux")]
 use tray::DevTray;
 
 const TEMPLATE: &str = r#"# devtray 配置 —— 改完自动生效（托盘菜单里也有「重新加载配置」）
@@ -201,8 +206,13 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None => run_tray(),
+        Some("capabilities") => {
+            say!("{}", platform::capabilities());
+            ExitCode::SUCCESS
+        }
         // agent 入口：MCP over stdio（stdout 只走协议消息）
         Some("mcp") => ExitCode::from(mcp::serve() as u8),
+        Some("inventory") => inventory::command(&args[1..]),
         Some("status") | Some("--status") => status(&args[1..]),
         Some("start") => action(&args, cli::start),
         Some("stop") => action(&args, cli::stop),
@@ -302,6 +312,8 @@ fn print_help() {
   devtray panel --mode small|full  切换并记忆面板模式
   devtray menu [--toggle]     打开 / 收回小面板
   devtray terminal <目标>    打开 tmux 实时终端
+  devtray inventory [--json]  采集本机工具路径、版本与探测结果
+  devtray capabilities       输出本机平台与已实现能力（JSON）
   devtray status [--json]    列出服务与状态
   devtray start <目标>       启动
   devtray stop <目标>        停止
@@ -366,6 +378,7 @@ fn ensure_template(path: &PathBuf) {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn run_tray() -> ExitCode {
     let path = config_path();
     ensure_template(&path);
@@ -400,7 +413,14 @@ fn run_tray() -> ExitCode {
     }
 }
 
+#[cfg(not(target_os = "linux"))]
+fn run_tray() -> ExitCode {
+    eprintln!("此平台的桌面入口尚未接入；可使用 agents --json、capabilities 等 CLI 命令。");
+    ExitCode::FAILURE
+}
+
 /// 同一时间只允许一个托盘（systemd 之外手动再跑一个会出现两个图标）
+#[cfg(target_os = "linux")]
 fn acquire_lock() -> Result<(), String> {
     let dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
     let path = PathBuf::from(dir).join("devtray.lock");

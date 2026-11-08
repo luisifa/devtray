@@ -134,7 +134,7 @@ pub struct ProjectRoot {
 }
 
 pub fn home_dir() -> PathBuf {
-    std::env::var("HOME").map(PathBuf::from).unwrap_or_default()
+    crate::platform::home_dir()
 }
 
 /// 根目录过宽时禁止清理。`/`、家目录、`~/Workspace` 是实测最容易因推断过宽出事的三类。
@@ -192,7 +192,7 @@ pub(crate) fn absolute(path: PathBuf) -> PathBuf {
 
 pub fn expand_home(p: &str) -> PathBuf {
     if let Some(rest) = p.strip_prefix("~/")
-        && let Ok(home) = std::env::var("HOME")
+        && let Some(home) = crate::platform::home_dir_option()
     {
         return Path::new(&home).join(rest);
     }
@@ -204,17 +204,27 @@ pub fn shell_quote(s: &str) -> String {
 }
 
 pub fn state_dir() -> PathBuf {
-    let base = std::env::var("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| expand_home("~/.local/state"));
-    base.join("devtray")
+    #[cfg(windows)]
+    return crate::platform::user_data_dir().join("state");
+    #[cfg(not(windows))]
+    {
+        let base = std::env::var("XDG_STATE_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| expand_home("~/.local/state"));
+        base.join("devtray")
+    }
 }
 
 pub fn default_config_path() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| expand_home("~/.config"));
-    base.join("devtray/config.toml")
+    #[cfg(windows)]
+    return crate::platform::user_data_dir().join("config.toml");
+    #[cfg(not(windows))]
+    {
+        let base = std::env::var("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| expand_home("~/.config"));
+        base.join("devtray/config.toml")
+    }
 }
 
 impl Config {

@@ -16,11 +16,7 @@ const TABLE: &[(&str, &[&str])] = &[
 ];
 
 pub fn which(prog: &str) -> bool {
-    let Ok(path) = std::env::var("PATH") else {
-        return false;
-    };
-    path.split(':')
-        .any(|d| !d.is_empty() && std::path::Path::new(d).join(prog).is_file())
+    crate::platform::find_executable(prog).is_some()
 }
 
 fn flag_for(prog: &str) -> &'static [&'static str] {

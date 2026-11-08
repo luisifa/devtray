@@ -1,0 +1,71 @@
+name: macOS cloud build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/macos-cloud-build]
+
+permissions:
+  contents: read
+
+jobs:
+  macos-arm64:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVTRAY_TEST_BINARY: target/aarch64-apple-darwin/release/devtray
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare Rust and tmux
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rust-docs
+          rustup override set 1.97.1
+          command -v tmux || brew install tmux
+          rustc -vV
+          uname -m
+      - name: Check and build native CLI
+        run: |
+          cargo check --locked --all-targets --target aarch64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          "$DEVTRAY_TEST_BINARY" --version
+          "$DEVTRAY_TEST_BINARY" capabilities
+      - name: Verify local inventory and MCP without WSL
+        run: python tests/native_inventory.py
+      - name: Verify real tmux lifecycle and archived logs
+        run: python tests/log_restart.py
+      - name: Package CLI preview
+        run: |
+          python scripts/generate-third-party-notices.py --target aarch64-apple-darwin
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, subprocess, tarfile
+          root = pathlib.Path('.')
+          version = json.loads(subprocess.check_output(
+              ['cargo', 'metadata', '--no-deps', '--format-version', '1'], text=True))['packages'][0]['version']
+          name = f'devtray-{version}-macOS-arm64-cli-preview'
+          stage = root / 'target' / 'macos-preview' / name
+          stage.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(os.environ['DEVTRAY_TEST_BINARY'], stage / 'devtray')
+          for item in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'Cargo.lock']:
+              shutil.copy2(root / item, stage / item)
+          shutil.copytree(root / 'licenses', stage / 'licenses', dirs_exist_ok=True)
+          (stage / 'PREVIEW.txt').write_text(
+              'CLI preview for Apple Silicon macOS. Not a desktop app or notarized installer.\n'
+              'Service management requires tmux. Run ./devtray inventory --json to collect local tools.\n'
+              'Disk cleaning and macOS desktop entry are not implemented.\n')
+          dist = root / 'dist' / 'macos'
+          dist.mkdir(parents=True, exist_ok=True)
+          archive = dist / f'{name}.tar.gz'
+          with tarfile.open(archive, 'w:gz') as tar:
+              tar.add(stage, arcname=name)
+          (dist / 'SHA256SUMS').write_text(
+              hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devtray-macos-arm64-cli-preview
+          path: dist/macos/
+          if-no-files-found: error
+          retention-days: 14

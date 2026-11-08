@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BINARY = os.environ.get('DEVTRAY_TEST_BINARY', str(ROOT / 'target/debug/devtray'))
 
 TOOLS = {
+    'devtray_inventory',
     'devtray_status', 'devtray_logs', 'devtray_start', 'devtray_stop',
     'devtray_restart', 'devtray_open_preview', 'devtray_disk', 'devtray_job',
     'devtray_clean', 'devtray_git_status', 'devtray_git_diff', 'devtray_git_commit',
@@ -197,5 +198,5 @@ with tempfile.TemporaryDirectory(prefix='devtray-mcp-') as tmp:
     assert state == 'cancelled', polled
     assert 'yad' in (polled['error'] or ''), polled
 
-print('PASS: MCP handshake, fourteen tools, status, logs, disk cache, job/clean denial, '
+print('PASS: MCP handshake, fifteen tools, status, logs, disk cache, job/clean denial, '
       'git read/write with allow/ask/deny')

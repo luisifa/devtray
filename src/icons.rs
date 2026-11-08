@@ -161,6 +161,7 @@ impl Badge {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn pixmaps(self) -> Vec<ksni::Icon> {
         macro_rules! images {
             ($name:literal) => {
@@ -213,7 +214,7 @@ fn is_builtin(name: &str) -> bool {
     [DEFAULT_OK, DEFAULT_STARTING, DEFAULT_ERROR, "devtray-idle"].contains(&name)
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod payload_tests {
     use super::*;
     #[test]

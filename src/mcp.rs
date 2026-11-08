@@ -82,6 +82,11 @@ fn tools() -> Value {
     json!({
         "tools": [
             {
+                "name": "devtray_inventory",
+                "description": "只读采集本机开发工具和 Agent 的实际路径、版本、探测状态及平台能力；无需服务配置，不启动 WSL 或服务。",
+                "inputSchema": {"type": "object", "properties": {}, "additionalProperties": false}
+            },
+            {
                 "name": "devtray_status",
                 "description": "列出 devtray 托管的所有开发服务及其状态。agent 在启停前应先调它确认目标名。state 取值：not_started / running / starting / ready / exited_ok / exited_failed / exited_signal。",
                 "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
@@ -272,6 +277,9 @@ fn arg<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
 
 fn run_tool(name: &str, args: &Value) -> Result<String, String> {
     match name {
+        "devtray_inventory" => {
+            return serde_json::to_string(&crate::inventory::collect()).map_err(|e| e.to_string());
+        }
         "devtray_disk" => return disk_tool(args),
         "devtray_job" => return job_tool(args),
         "devtray_clean" => return clean_tool(args),

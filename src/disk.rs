@@ -3,13 +3,18 @@
 //! 这一步**只读**：不删除、不改配置。清理所需的门禁在 `clean` 里另做，
 //! 但证据与完整性在这里先算出来，避免"先展示、后补证据"造成口径漂移。
 
-use std::collections::{BTreeMap, HashSet};
+#[cfg(unix)]
+use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+#[cfg(unix)]
+use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -133,6 +138,7 @@ pub struct ScanOptions {
     pub extra_dirs: Vec<String>,
 }
 
+#[cfg(unix)]
 struct Walk<'a> {
     root: &'a Path,
     extra: &'a [String],
@@ -149,6 +155,7 @@ struct Walk<'a> {
     warnings: Vec<String>,
 }
 
+#[cfg(unix)]
 pub fn scan(project: &ProjectRoot, opts: &ScanOptions) -> ProjectUsage {
     let started = Instant::now();
     let mount_result = read_mounts();
@@ -248,6 +255,7 @@ pub fn scan(project: &ProjectRoot, opts: &ScanOptions) -> ProjectUsage {
     }
 }
 
+#[cfg(unix)]
 impl Walk<'_> {
     fn walk(&mut self, dir: &Path) {
         let entries = match fs::read_dir(dir) {
@@ -501,6 +509,7 @@ pub(crate) fn evidence_for(
 }
 
 #[derive(Default)]
+#[cfg(unix)]
 struct Measure {
     allocated: u64,
     logical: u64,
@@ -508,6 +517,7 @@ struct Measure {
     mounts: Vec<PathBuf>,
 }
 
+#[cfg(unix)]
 fn allocated_bytes(md: &fs::Metadata) -> u64 {
     md.blocks().saturating_mul(512)
 }
@@ -611,6 +621,9 @@ fn vcs_tracked(root: &Path, path: &Path) -> bool {
 }
 
 pub(crate) fn read_mounts() -> Result<HashSet<PathBuf>, String> {
+    if !cfg!(target_os = "linux") {
+        return Err("当前平台尚未实现卷边界检测，清理不可用".into());
+    }
     let text = fs::read_to_string("/proc/self/mountinfo")
         .map_err(|e| format!("读 /proc/self/mountinfo 失败：{e}"))?;
     Ok(parse_mountinfo(&text))
@@ -992,7 +1005,7 @@ pub(crate) fn open_path(dir: &Path) -> Result<String, String> {
     Ok(format!("已用默认文件管理器打开 {}", dir.display()))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::fs::File;
@@ -1245,5 +1258,31 @@ mod tests {
         let b = scan(&project(&t.0), &ScanOptions::default());
         assert_eq!(a.total_allocated, b.total_allocated);
         assert_eq!(a.artifacts.len(), b.artifacts.len());
+    }
+}
+
+// No inferred disk totals on Windows until file identity and reparse points are supported.
+#[cfg(windows)]
+pub fn scan(project: &ProjectRoot, _opts: &ScanOptions) -> ProjectUsage {
+    ProjectUsage {
+        project: project.project.clone(),
+        root: project.root.display().to_string(),
+        inferred: project.inferred,
+        cleaning_allowed: false,
+        cleaning_reason: Some("Windows 磁盘扫描与清理尚未实现".into()),
+        notes: vec![],
+        artifacts: vec![],
+        other_top: vec![],
+        artifacts_allocated: 0,
+        unclassified_allocated: 0,
+        total_allocated: 0,
+        total_logical: 0,
+        deletable_allocated: 0,
+        scanned_at: now_secs(),
+        duration_ms: 0,
+        skipped: 0,
+        mount_skipped: vec![],
+        complete: false,
+        warnings: vec!["扫描不可用；大小字段不是实际测量结果".into()],
     }
 }

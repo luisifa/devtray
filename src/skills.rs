@@ -775,7 +775,7 @@ fn copy_tree(src: &Path, dst: &Path) -> Result<(), String> {
         let meta = fs::symlink_metadata(&from).map_err(|e| e.to_string())?;
         if meta.file_type().is_symlink() {
             let target = fs::read_link(&from).map_err(|e| e.to_string())?;
-            std::os::unix::fs::symlink(&target, &to).map_err(|e| e.to_string())?;
+            crate::platform::symlink(&target, &to).map_err(|e| e.to_string())?;
         } else if meta.is_dir() {
             copy_tree(&from, &to)?;
         } else if meta.is_file() {
@@ -897,6 +897,10 @@ fn execute_job(job: &mut Job) -> Result<String, String> {
 }
 
 pub fn run_job(id: Option<&String>) -> std::process::ExitCode {
+    if cfg!(windows) {
+        eprintln!("Windows Skills 写操作尚未实现；可查看只读清单");
+        return ExitCode::FAILURE;
+    }
     let result = (|| -> Result<String, String> {
         let id = id.ok_or("用法：devtray _skills-run <job-id>")?;
         let mut job = Job::load(id)?;
@@ -988,6 +992,10 @@ fn parse_write_args(args: &[String]) -> Result<WriteArgs, String> {
 }
 
 pub fn start_command(args: &[String]) -> ExitCode {
+    if cfg!(windows) {
+        eprintln!("Windows Skills 写操作尚未实现；可查看只读清单");
+        return ExitCode::FAILURE;
+    }
     let parsed = match parse_write_args(args) {
         Ok(p) => p,
         Err(e) => {
@@ -1142,7 +1150,7 @@ fn restore(name: &str, snapshot: Option<&str>, restore_lock: bool) -> Result<Str
                     .target
                     .as_deref()
                     .ok_or_else(|| format!("快照副本 {} 缺少链接目标", mirror.path))?;
-                std::os::unix::fs::symlink(link_target, &target)
+                crate::platform::symlink(link_target, &target)
                     .map_err(|e| format!("重建符号链接 {} 失败：{e}", target.display()))?;
             }
             "copy" => {
@@ -1261,6 +1269,10 @@ pub fn backups_command(args: &[String]) -> ExitCode {
 }
 
 pub fn restore_command(args: &[String]) -> ExitCode {
+    if cfg!(windows) {
+        eprintln!("Windows Skills 写操作尚未实现；可查看只读清单");
+        return ExitCode::FAILURE;
+    }
     let mut name = None;
     let mut snapshot = None;
     let mut restore_lock = false;
@@ -1707,6 +1719,10 @@ pub fn install_plan_command(args: &[String]) -> ExitCode {
 }
 
 pub fn install_start_command(args: &[String]) -> ExitCode {
+    if cfg!(windows) {
+        eprintln!("Windows Skills 写操作尚未实现；可查看只读清单");
+        return ExitCode::FAILURE;
+    }
     let result = (|| -> Result<String, String> {
         let (source, skill, agents, allow) = install_args(args)?;
         let plan = plan_install(&source, skill.as_deref(), &agents, allow)?;

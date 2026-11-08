@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Log digest
+- Add `devtray logs --digest` and MCP `devtray_logs { digest: true }`: a deterministic triage that turns hundreds of lines into findings, each with the error code, `file:line:column`, occurrence count, and up to two samples.
+- Keep one line of run-end context (`The system will reboot now!`, `^C [ELIFECYCLE] ...`) and lift the request endpoint (`path=/api/auth/login`, vite proxy paths) into the finding, so shutdowns and failing endpoints are not mistaken for code defects.
+- Recognize Rust compiler errors, panics, port conflicts, Python tracebacks, JavaScript/Bun errors, and package-manager failures (`[ELIFECYCLE]`, `npm ERR!`); fall back to the log level classifier, and drop tracing span prefixes from summaries so real request logs stay readable. Repeated messages are merged after normalizing numbers, timestamps, and ULID/UUID/hash tokens, findings are ordered by frequency, capped at eight, and the rest is reported as a count. Defaults to the last 300 lines and never calls a model.
+
+### Git over MCP
+- Add `devtray_git_status`, `devtray_git_diff`, `devtray_git_commit`, `devtray_git_push`, and `devtray_git_pull`, wrapping the same guarded Git functions as the Git page and `devtray git`.
+- Writes follow `mcp_writes`: `deny` refuses, `allow` runs immediately and returns the commit hash / push summary / pull result, and `ask` creates a job, shows the desktop yad confirmation (60 s timeout counts as denial; missing `yad` fails closed), and reports through `devtray_job`.
+- Commit only accepts files from the current change list and re-reads status before staging; push never forces; pull stays `--ff-only` and skips repositories with uncommitted changes unless `allow_dirty` is set.
+
 ## 0.2.0 - 2026-11-04
 
 ### Interaction fixes

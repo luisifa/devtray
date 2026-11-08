@@ -7,6 +7,7 @@ mod alerts;
 mod clean;
 mod cli;
 mod config;
+mod digest;
 mod disk;
 mod form;
 mod git;
@@ -224,6 +225,7 @@ fn main() -> ExitCode {
         Some("_git-commit") => git::commit_command(),
         Some("_git-pull-start") => git::start_pull_command(&args[1..]),
         Some("_git-pull-run") => git::run_pull_job(args.get(1)),
+        Some("_git-run") => git::run_job_command(args.get(1)),
         Some("_disk-scan") => disk::scan_only(&args[1..]),
         Some("_disk-cache") => disk::cache_command(),
         Some("_clean") => clean::job_command(args.get(1)),
@@ -535,6 +537,8 @@ fn logs_cmd(args: &[String]) -> ExitCode {
         ..Default::default()
     };
     let mut json = false;
+    let mut digest = false;
+    let mut lines_set = false;
     let mut it = args.iter();
     let parsed: Result<(), String> = (|| {
         while let Some(a) = it.next() {
@@ -544,7 +548,8 @@ fn logs_cmd(args: &[String]) -> ExitCode {
                         .next()
                         .ok_or("缺少行数")?
                         .parse()
-                        .map_err(|_| "行数必须是非负整数")?
+                        .map_err(|_| "行数必须是非负整数")?;
+                    lines_set = true;
                 }
                 "--level" => {
                     q.levels = it
@@ -571,6 +576,7 @@ fn logs_cmd(args: &[String]) -> ExitCode {
                         return Err("归档编号须在 0..10 范围".into());
                     }
                 }
+                "--digest" => digest = true,
                 "--json" => json = true,
                 s if s.starts_with('-') => return Err(format!("未知选项：{s}")),
                 s => {
@@ -583,20 +589,42 @@ fn logs_cmd(args: &[String]) -> ExitCode {
         Ok(())
     })();
     let result = parsed.and_then(|_| {
-        let spec = spec.ok_or("用法：devtray logs <目标> [-n N] [--level warn,error] [--search 文本] [--history | --run N] [--json]")?;
+        let spec = spec.ok_or("用法：devtray logs <目标> [-n N] [--level warn,error] [--search 文本] [--history | --run N] [--digest] [--json]")?;
         let ctx = cli::Ctx::load()?;
         let t = ctx.resolve(&spec)?;
-        logs::query(&t.log_path, &q)
+        if digest && !lines_set {
+            q.lines = 300;
+        }
+        let set = logs::query(&t.log_path, &q)?;
+        if !digest {
+            return Ok(if json {
+                serde_json::to_string(&set).unwrap()
+            } else {
+                set.entries
+                    .into_iter()
+                    .map(|e| e.text)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+        }
+        let lines: Vec<String> = set.entries.into_iter().map(|e| e.text).collect();
+        let report = crate::digest::analyze(&lines);
+        let status = ctx.statuses().into_iter().find(|s| s.session == t.session);
+        let state = status.map(|s| s.state.text());
+        let subject = format!("{}/{}", t.project, t.service.name);
+        if json {
+            return Ok(serde_json::to_string(&serde_json::json!({
+                "subject": subject,
+                "state": state,
+                "report": report,
+            }))
+            .unwrap());
+        }
+        Ok(crate::digest::render(&report, &subject, state.as_deref()))
     });
     match result {
-        Ok(r) => {
-            if json {
-                say!("{}", serde_json::to_string(&r).unwrap());
-            } else {
-                for entry in r.entries {
-                    say!("{}", entry.text);
-                }
-            }
+        Ok(text) => {
+            say!("{text}");
             ExitCode::SUCCESS
         }
         Err(e) => {

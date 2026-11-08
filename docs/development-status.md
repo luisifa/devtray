@@ -12,7 +12,7 @@ devtray 是 Linux 开发服务工作台。开发者和 AI Agent 共用同一套�
 | --- | --- | --- |
 | 服务管理 | 按项目组织服务，单项／项目／全局启停与重启，自动启动，日志正则或 TCP 就绪检测，打开工作目录和浏览器预览 | 服务管理、快捷小面板、托盘、CLI、MCP |
 | 完整工作台 | 松绿色导航、总览、服务管理、资源、Git、Agent 与 Skills、日志中心、工作台设置；保留全局项目／服务树、搜索和折叠 | 托盘左键、`devtray panel` |
-| 日志 | 级别筛选、搜索、历史归档、大小轮转、暂停、拖选复制、导出；可直接打开原始 tmux 交互终端 | 日志中心、服务卡片、`devtray logs` |
+| 日志 | 级别筛选、搜索、历史归档、大小轮转、暂停、拖选复制、导出、`--digest` 确定性分诊；可直接打开原始 tmux 交互终端 | 日志中心、服务卡片、`devtray logs`、MCP `devtray_logs` |
 | 交互与快捷键 | 统一边框、按钮与焦点状态，进行中与成功／错误反馈，默认快捷键、设置覆盖、冲突检查、禁用及恢复默认 | 工作台设置、F1 |
 | 异常处理 | 服务和项目范围的已读按钮，日志中心异常列表，按项目和未读／已读筛选，逐条查看日志与标记已读；托盘同步解除对应告警 | 面板、快捷小面板、托盘、`devtray ack` |
 | 项目资源 | 扫描 `target`、`node_modules`、`.venv` 等目录，区分分配空间与逻辑大小，扫描缓存、资源摘要、打开目录 | 资源页、`devtray disk` |
@@ -20,7 +20,7 @@ devtray 是 Linux 开发服务工作台。开发者和 AI Agent 共用同一套�
 | Git 工作区 | 按项目根识别仓库并去重，查看分支／领先落后／变更／最近提交与 diff；勾选文件提交、推送、ff-only 拉取；批量拉取跳过不合规仓库并汇总 | Git 页、`devtray git` |
 | Agent 检测 | 检测本地可执行文件、版本、安装来源，展示建议升级命令；补查常见用户安装目录，兼容 stderr 版本输出与超时 | Agent 与 Skills、`devtray agents` |
 | Skills | 全局清单、lock 对账、来源和副本状态，GitHub tree SHA 更新检查，安装／升级／删除、操作前快照、快照恢复 | Agent 与 Skills、`devtray skills` |
-| Agent 接入 | 九个 MCP 工具，共享服务操作、日志、资源缓存、后台清理与 job 查询 | `devtray mcp` |
+| Agent 接入 | 十四个 MCP 工具，共享服务操作、日志、资源缓存、后台清理、Git 读写与 job 查询 | `devtray mcp` |
 
 服务与日志采集器由 tmux 托管。窗口隐藏以及按附带单元重启托盘时，已有服务继续运行。需要更新业务服务命令或环境时，仍要单独重启对应服务。
 
@@ -62,9 +62,9 @@ devtray 是 Linux 开发服务工作台。开发者和 AI Agent 共用同一套�
 | 验证范围 | 结果 |
 | --- | --- |
 | Rust 格式、编译、Clippy | 通过；Clippy 使用 `-D warnings` |
-| Rust 单元测试 | 81 项通过（Git 增量后） |
+| Rust 单元测试 | 98 项通过（日志分诊实验后） |
 | Qt 面板、资源工作区、异常处理 | 原面板／资源／异常分别 15／12／9 项，键盘与反馈 13 项，Git 6 项，共 55 项 |
-| MCP | 握手、九个工具、状态、日志、资源缓存、清理与 job 行为通过 |
+| MCP | 握手、十四个工具、状态、日志与分诊、资源缓存、清理、Git 读写与 job 行为通过 |
 | Agent 与 Skills | 清单和来源检测、更新缓存、安装、写门禁、快照与恢复相关集成检查通过 |
 | 资源与交互 | 资源渲染、真实后端扫描、清理门禁、路径解析、操作菜单和通知清除检查通过 |
 | tmux 与终端 | 首次输出、重启归档、停止后日志、真实 PTY attach 与浏览器分发通过 |
@@ -75,16 +75,21 @@ devtray 是 Linux 开发服务工作台。开发者和 AI Agent 共用同一套�
 
 2026-11-04 增量验证：Rust 单元测试增至 **81 项**（新增 9 项，覆盖 porcelain 解析、仓库去重、非仓库项目、只提交选中文件、路径围栏、fast-forward 拉取与脏仓库跳过、日志与 diff）；新增 `tests/git_workspace.py` **6 项**集成回归，使用真实临时 Git 仓库、远端和离线 Qt 面板，覆盖 CLI 与面板的提交、推送、拉取、后台批量任务；既有 Qt、资源、Agent 与 Skills、MCP 回归全部通过。
 
+2026-11-07 增量验证：新增 Git 的五个 MCP 工具（`devtray_git_status` / `diff` / `commit` / `push` / `pull`），写操作复用 `mcp_writes`（`allow` 直接执行并返回结果，`ask` 建 job 后由 `_git-run` 弹 yad 确认，`deny` 拒绝）。Rust 单元测试增至 **82 项**；`tests/mcp.py` 扩展到十四个工具，用真实临时仓库覆盖读、`allow`/`ask`/`deny` 三条写路径与 fail-closed；`tests/git_workspace.py` 6 项回归保持通过。
+
+2026-11-07 继续：新增 `devtray logs --digest` 与 MCP `devtray_logs { digest: true }`（`src/digest.rs`，纯规则、无模型）。识别编译错误、panic、端口占用、Python traceback、JS 报错与包管理器失败，按归一化内容（含 ULID/UUID/哈希）去重计数，并剥掉 tracing 的 span 前缀；Rust 单元测试增至 **98 项**，`tests/mcp.py` 与 `tests/log_restart.py` 增加分诊断言。随后用 6 个真实日志做了「原文 vs 分诊」对照实验（见下文），据此补了运行结束上下文、`^C` 原行与请求端点三条规则。
+
 常用验证命令和完整集成脚本列表见 [CI 配置](../.github/workflows/ci.yml)。
 
 ## 下一期可继续的工作
 
-1. Git 的 MCP 工具、首次推送设置上游，以及一个项目目录下多个独立仓库的拆分展示；当前一个项目对应一个仓库，push 需要已有上游。
+1. 首次推送自动设置上游，以及一个项目目录下多个独立仓库的拆分展示；当前一个项目对应一个仓库，push 需要已有上游（Git 的 MCP 工具已完成）。
 2. Agent 在线最新版本查询及来源感知的升级执行；当前只检测本地版本与展示建议命令。
 3. 项目级 Skills 管理；当前主要管理全局 Skills 与关联副本。
 4. 跨运行的历史异常事件和后台 job 失败统一收件箱；当前异常列表聚焦保留的服务异常退出。
 5. 浅色主题运行时切换；方向 C 原型保留备用，当前实现使用已确认的松绿色方向 A。
 6. 可选 AI 发现／建议与其他平台支持；当前没有原生 macOS／Windows 应用。
+7. 日志 AI 分诊：按 [分诊实验](log-triage-experiment.md) 的结论**暂缓**——`--digest` 已给出类型与定位，便宜模型目前没有净增量；若要做，契约限定为「输入 digest、输出 ≤120 token 的 cause/next_action」，且不产生写操作。
 
 下一期排期前，可基于以上边界补充验收条件。
 
@@ -93,6 +98,7 @@ devtray 是 Linux 开发服务工作台。开发者和 AI Agent 共用同一套�
 - [中文使用说明](../README.zh-CN.md)／[English README](../README.md)
 - [资产与技能设计](asset-management.md)
 - [控制面板与异常处理设计](control-panel.md)
+- [日志分诊实验](log-triage-experiment.md)
 - [仓库管理与发布说明](repository-management.md)
 - [已确认的设计方向](../design-demos/direction-approved.md)
 - [中文更新日志](../CHANGELOG.zh-CN.md)／[English changelog](../CHANGELOG.md)

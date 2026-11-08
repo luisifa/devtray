@@ -325,9 +325,13 @@ devtray logs my-app/backend --level warn,error
 devtray logs my-app/backend --level info --search request
 devtray logs my-app/backend --history --level error
 devtray logs my-app/backend --run 1 --json
+devtray logs my-app/backend --digest          # 压缩分诊，不整段回吐日志
+devtray logs my-app/backend --digest --json   # 同样的内容，结构化输出
 ```
 
 日志默认存放在 `${XDG_STATE_HOME:-~/.local/state}/devtray/logs/`。每个服务保留当前 `.log` 和最多十份归档，`.log.1` 最新。重启或单文件达到约 10 MiB 都会归档。通常每服务占用约 110 MiB，允许少量写入块余量；旧版本遗留的大文件可能超过这个值。归档编号随轮转变化，不是固定的运行 ID。
+
+`--digest` 把几百行日志压成若干条问题：每条带错误码（如 `E0308`）、`文件:行:列`、出现次数和最多两条样例。识别 Rust 编译错误、`panic`、端口占用、Python traceback、JavaScript/Bun 报错和包管理器失败（`[ELIFECYCLE]`、`npm ERR!`），其余回退到日志级别分类；另外保留一行「运行结束上下文」（`The system will reboot now!`、`^C ...`），并把请求端点（`path=/api/auth/login`、vite 代理路径）提进条目。重复项按去掉数字、时间戳和 ULID/UUID/哈希后的内容合并——同一条错误换个 request id 也只算一条并累计次数，结果按出现次数排序。不传 `-n` 时扫描最后 300 行。整个过程只走规则，不调用模型。
 
 级别支持 `trace`、`debug`、`info`、`warn`、`error`、`other`；搜索不区分大小写。查询先筛选再取最新匹配行，每个文件最多扫描末尾 2 MiB。CLI 最多返回 10,000 行，MCP 最多 5,000 行，面板最多显示 2,000 行。更早的内容可以直接读取原始文件；结构化日志查询会返回截断信息。
 
@@ -365,7 +369,7 @@ codex mcp list
 | 工具 | 参数 | 用途 |
 | --- | --- | --- |
 | `devtray_status` | 无 | 列出服务、机器状态、命令、日志路径和预览 URL |
-| `devtray_logs` | `target`；可选 `lines`、`level`、`search`、`history` | 读取当前或历史日志，默认 80 行 |
+| `devtray_logs` | `target`；可选 `lines`、`level`、`search`、`history`、`digest` | 读取当前或历史日志（默认 80 行）；`digest` 返回压缩分诊（默认 300 行） |
 | `devtray_start` | `target` | 启动／重建服务，并返回新状态 |
 | `devtray_stop` | `target` | 停止服务 |
 | `devtray_restart` | `target` | 停止后重新启动 |
@@ -373,8 +377,13 @@ codex mcp list
 | `devtray_disk` | 可选 `project` | 读取构建目录扫描缓存（分配/逻辑、可清理标记） |
 | `devtray_job` | `job_id`；可选 `cancel` | 查询后台清理任务的状态/进度/结果 |
 | `devtray_clean` | `project`；`kinds` / `paths` / `all` 之一 | 创建清理任务，返回 `job_id` |
+| `devtray_git_status` | 可选 `project` | 列出仓库：分支、上游、领先/落后、变更文件、进行中的变基/合并 |
+| `devtray_git_diff` | `project`；可选 `path`、`staged` | 读 unified diff；`path` 必须在当前变更列表里 |
+| `devtray_git_commit` | `project`、`message`；`paths` / `all` 二选一 | 只提交列出的文件（暂存前重新核对）；`allow` 下直接返回短哈希 |
+| `devtray_git_push` | `project` | 推送到已有上游；不做 force |
+| `devtray_git_pull` | `project`；可选 `allow_dirty` | 只做 fast-forward；默认跳过有未提交改动的仓库 |
 
-MCP 的写操作默认受 `mcp_writes` 控制：`ask` 时在用户桌面弹出 yad 对话框（60 秒无响应视为拒绝），`deny` 直接拒绝，`allow` 才跳过弹窗。`devtray_clean` 只创建任务并立即返回 `job_id`，不会阻塞连接；必须继续调用 `devtray_job` 轮询，直到 `done` / `error` / `cancelled`。执行前仍会复检运行中的服务和挂载点，审批通过不等于一定删除成功。
+MCP 的写操作默认受 `mcp_writes` 控制：`ask` 时在用户桌面弹出 yad 对话框（60 秒无响应视为拒绝），`deny` 直接拒绝，`allow` 才跳过弹窗。`ask` 下 `devtray_clean` 和三个 git 写工具只创建任务并立即返回 `job_id`，不会阻塞连接；必须继续调用 `devtray_job` 轮询，直到 `done` / `error` / `cancelled`。`allow` 下 git 写工具直接执行，返回提交哈希、推送摘要或拉取结果。执行前仍会复检运行中的服务、挂载点和变更列表，审批通过不等于一定成功。
 
 建议流程：**先查状态 → 必要时启动 → 等待并复查就绪状态 → 失败时读取日志**。启动调用成功只表示已发起运行，不表示编译和启动已经结束。MCP 状态结果可能附带 `advice`，说明服务还在启动或建议查看错误日志。CLI 的 JSON 状态结果包含 `services`，人类可读输出会在需要时附带建议。
 

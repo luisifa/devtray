@@ -13,10 +13,10 @@ use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::config::{self, Config, ProjectRoot};
-use crate::jobs::Job;
+use crate::jobs::{Job, JobState};
 
 const LOCAL_TIMEOUT: Duration = Duration::from_secs(20);
 const COMMIT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -1381,6 +1381,227 @@ fn pull_cli(args: &[String]) -> Result<String, String> {
     ))
 }
 
+// ── MCP 写操作：审批 + 后台任务 ─────────────────────────────────────────────
+
+/// 解析项目并要求它确实是可用仓库（MCP / 面板入口用；不走 `RepoInfo::ready` 的私有路径）。
+pub fn checkout(project: &str) -> Result<RepoInfo, String> {
+    let repo = resolve(project)?;
+    repo.ready()?;
+    Ok(repo)
+}
+
+/// 执行一个 git 写操作。`action` 取 `commit` / `push` / `pull`，`params` 是对应的请求字段。
+///
+/// 只被 `_git-run` 后台任务和 `mcp_writes = allow` 的直接执行路径调用：
+/// 安全边界全部落在被调用的 `commit` / `push_repo` / `pull_repo` 里，这里不新增放行条件。
+pub fn execute_action(action: &str, params: &Value) -> Result<Value, String> {
+    let project = params
+        .get("project")
+        .and_then(Value::as_str)
+        .ok_or("缺少 project")?;
+    match action {
+        "commit" => {
+            let req: CommitRequest = serde_json::from_value(params.clone())
+                .map_err(|e| format!("提交参数格式错误：{e}"))?;
+            serde_json::to_value(commit(req)?).map_err(|e| e.to_string())
+        }
+        "push" => {
+            let repo = resolve(project)?;
+            push_repo(&repo)
+        }
+        "pull" => {
+            let allow_dirty = params
+                .get("allow_dirty")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let repo = resolve(project)?;
+            serde_json::to_value(pull_repo(&repo, allow_dirty)?).map_err(|e| e.to_string())
+        }
+        other => Err(format!("未知 git 写操作：{other}")),
+    }
+}
+
+fn job_verb(action: &str) -> &'static str {
+    match action {
+        "commit" => "提交",
+        "push" => "推送",
+        "pull" => "拉取",
+        _ => "执行",
+    }
+}
+
+/// yad 审批文案：把「做什么、动哪个项目、涉及哪些文件」一次说清。
+fn job_text(job: &Job) -> String {
+    let project = job.project.as_deref().unwrap_or("?");
+    let params = job.params.clone().unwrap_or_else(|| json!({}));
+    let mut lines = vec![format!(
+        "项目：{project}\n操作：{}",
+        job_verb(job.action.as_str())
+    )];
+    if job.action == "commit" {
+        let message = params
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
+        if params.get("all").and_then(Value::as_bool).unwrap_or(false) {
+            lines.push("文件：全部变更".into());
+        } else {
+            lines.push(format!("文件：{} 个", job.paths.len()));
+            let mut names: Vec<&str> = job.paths.iter().take(8).map(String::as_str).collect();
+            if job.paths.len() > 8 {
+                names.push("…");
+            }
+            lines.push(format!("  {}", names.join("\n  ")));
+        }
+        lines.push(format!("提交信息：{message}"));
+    }
+    lines.push("约定：提交只包含上面这些文件；推送不做 force；拉取只做 fast-forward。\n".into());
+    lines.push(format!("来源：MCP（{}）", job.source));
+    lines.join("\n")
+}
+
+/// 拒绝或超时：任务进 cancelled，原因写进 job.error，agent 轮询时能看到。
+fn deny_job(job: &mut Job, reason: &str) -> Result<(), String> {
+    job.cancel();
+    job.error = Some(reason.into());
+    job.save()?;
+    Ok(())
+}
+
+/// 60 秒无响应按拒绝处理；yad 不可用由调用方提前 fail closed。
+fn yad_git_confirm(job: &Job) -> bool {
+    let status = Command::new("yad")
+        .args([
+            format!("--title=devtray · {}确认", job_verb(job.action.as_str())),
+            format!("--text={}", job_text(job)),
+            "--no-markup".to_string(),
+            "--width=620".to_string(),
+            "--center".to_string(),
+            "--timeout=60".to_string(),
+            "--button=允许:0".to_string(),
+            "--button=拒绝:1".to_string(),
+        ])
+        .status();
+    matches!(status, Ok(s) if s.success())
+}
+
+fn spawn_worker(command: &str, id: &str) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut cmd = Command::new(exe);
+    cmd.arg(command).arg(id);
+    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+    crate::proc::spawn_detached(&mut cmd).map_err(|e| format!("启动后台任务失败：{e}"))
+}
+
+/// `_git-run <job-id>`：MCP 写操作的后台执行者。
+///
+/// - `pending_approval`：按 `mcp_writes` 决定拒绝 / 直接执行 / 弹 yad 等用户确认；
+/// - `running`：已被 allow 直接执行，接着做；
+/// - 其它状态：不重复执行（覆盖 agent 取消的情形）。
+pub fn run_job_command(id: Option<&String>) -> ExitCode {
+    let id = match id {
+        Some(id) => id.clone(),
+        None => {
+            eprintln!("用法：devtray _git-run <job-id>");
+            return ExitCode::FAILURE;
+        }
+    };
+    let result = (|| -> Result<(), String> {
+        let mut job = Job::load(&id)?;
+        if job.state == JobState::PendingApproval {
+            let mode = load_config()?.settings.mcp_writes.to_lowercase();
+            match mode.as_str() {
+                "deny" => {
+                    deny_job(&mut job, "mcp_writes = deny")?;
+                    return Ok(());
+                }
+                "allow" => job.mark_running(Some("mcp_writes = allow 自动执行")),
+                _ => {
+                    if !crate::terminal::which("yad") {
+                        deny_job(&mut job, "yad 不可用，已拒绝（fail closed）")?;
+                        return Ok(());
+                    }
+                    if yad_git_confirm(&job) {
+                        job.mark_running(Some("用户已批准"));
+                    } else {
+                        deny_job(&mut job, "用户拒绝或审批超时（60s）")?;
+                        return Ok(());
+                    }
+                }
+            }
+            job.save()?;
+        } else if job.state != JobState::Running {
+            return Err(format!("任务 {} 已是 {:?}，不重复执行", job.id, job.state));
+        }
+        let params = job.params.clone().unwrap_or_else(|| json!({}));
+        match execute_action(&job.action, &params) {
+            Ok(value) => {
+                job.finish_ok(value);
+                job.save()?;
+                Ok(())
+            }
+            Err(error) => {
+                job.finish_error(error.clone());
+                job.save()?;
+                Err(error)
+            }
+        }
+    })();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// MCP 写操作的统一入口：`deny` 直接报错；`allow` 立刻执行并返回结果；
+/// `ask` 建 job 后交给 `_git-run` 等用户在桌面上确认，返回 job_id。
+pub fn submit(action: &str, params: Value) -> Result<Value, String> {
+    let mode = load_config()?.settings.mcp_writes.to_lowercase();
+    if mode == "deny" {
+        return Err("MCP 写操作已被配置禁用（mcp_writes = deny）".into());
+    }
+    let project = params
+        .get("project")
+        .and_then(Value::as_str)
+        .ok_or("缺少 project")?
+        .to_string();
+    let paths: Vec<String> = params
+        .get("paths")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // 先解析一次项目，把「项目名写错」「不是仓库」这类错误在创建任务前就反馈给 agent。
+    checkout(&project)?;
+
+    if mode == "allow" {
+        return execute_action(action, &params);
+    }
+
+    let mut job = Job::new(action, Some(&project), &paths);
+    job.source = "mcp".into();
+    job.params = Some(params);
+    job.save()?;
+    spawn_worker("_git-run", &job.id)?;
+    Ok(json!({
+        "job_id": job.id,
+        "state": "pending_approval",
+        "action": action,
+        "project": project,
+        "next": "等用户在桌面确认；用 devtray_job 轮询结果（拒绝或 60 秒超时会变成 cancelled）",
+    }))
+}
+
 // ── 测试 ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1530,6 +1751,24 @@ b.txt\0\
         let repos = repos_from(&cfg).unwrap();
         assert_eq!(repos.len(), 2);
         assert!(repos.iter().any(|r| !r.is_repo && r.project == "plain"));
+    }
+
+    #[test]
+    fn approval_text_shows_files_or_all() {
+        let mut job = Job::new("commit", Some("demo"), &["a.rs".into(), "b.rs".into()]);
+        job.params = Some(json!({
+            "project": "demo", "message": "fix: x", "paths": ["a.rs", "b.rs"], "all": false
+        }));
+        let text = job_text(&job);
+        assert!(text.contains("操作：提交"), "{text}");
+        assert!(text.contains("文件：2 个"), "{text}");
+        assert!(text.contains("a.rs"), "{text}");
+        assert!(text.contains("提交信息：fix: x"), "{text}");
+
+        job.params = Some(json!({"project": "demo", "message": "fix: y", "all": true}));
+        let text = job_text(&job);
+        assert!(text.contains("文件：全部变更"), "{text}");
+        assert!(!text.contains("文件：0 个"), "{text}");
     }
 
     #[test]

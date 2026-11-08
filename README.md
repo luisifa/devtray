@@ -320,9 +320,13 @@ devtray logs my-app/backend --level warn,error
 devtray logs my-app/backend --level info --search request
 devtray logs my-app/backend --history --level error
 devtray logs my-app/backend --run 1 --json
+devtray logs my-app/backend --digest          # compact triage instead of raw lines
+devtray logs my-app/backend --digest --json   # same data as structured JSON
 ```
 
 Logs default to `${XDG_STATE_HOME:-~/.local/state}/devtray/logs/`. Each service keeps the current `.log` plus up to ten archives (`.log.1` is newest). Restart and approximately 10 MiB size rotation both create archives. Retention is about 110 MiB per service, with small write-block overshoot; pre-existing oversized files may exceed this. Archive numbers move as files rotate; they are not permanent run IDs.
+
+`--digest` turns a few hundred lines into findings instead of raw text: each finding carries the error code (`E0308`), the `file:line:column`, an occurrence count, and up to two samples. It recognizes Rust compiler errors, `panic`s, port conflicts, Python tracebacks, JavaScript/Bun errors, and package-manager failures (`[ELIFECYCLE]`, `npm ERR!`), falling back to the log level classifier. It also keeps one line of run-end context (`The system will reboot now!`, `^C ...`) and lifts request endpoints (`path=/api/auth/login`, vite proxy paths) into the finding. Repetition is deduplicated after normalizing numbers, timestamps, and ULID/UUID/hash tokens, so the same error with a different request id collapses into one finding with a count; findings are ordered by frequency. It scans the last 300 lines unless you pass `-n`. Output is deterministic — no model is involved.
 
 Levels are `trace`, `debug`, `info`, `warn`, `error`, and `other`. Search is case-insensitive. Queries filter first and return the latest matching lines; they scan at most the last 2 MiB of each selected file. CLI results are capped at 10,000 lines, MCP at 5,000, and the panel at 2,000. Use the raw files for older content. JSON queries include truncation information.
 
@@ -360,7 +364,7 @@ Use `/usr/bin/devtray` for a distribution package, or the actual absolute path r
 | Tool | Arguments | Purpose |
 | --- | --- | --- |
 | `devtray_status` | None | List services, machine states, commands, logs, and preview URLs |
-| `devtray_logs` | `target`; optional `lines`, `level`, `search`, `history` | Read current or archived logs; default 80 lines |
+| `devtray_logs` | `target`; optional `lines`, `level`, `search`, `history`, `digest` | Read current or archived logs (default 80 lines); `digest` returns the compact triage (default 300 lines) |
 | `devtray_start` | `target` | Start/recreate a service, then return its new status |
 | `devtray_stop` | `target` | Stop a service |
 | `devtray_restart` | `target` | Stop then start a service |
@@ -368,8 +372,13 @@ Use `/usr/bin/devtray` for a distribution package, or the actual absolute path r
 | `devtray_disk` | optional `project` | Read cached build-directory usage (allocated/logical, deletable flags) |
 | `devtray_job` | `job_id`; optional `cancel` | Query a background cleanup job's state, progress, and result |
 | `devtray_clean` | `project`; one of `kinds` / `paths` / `all` | Create a cleanup job and return its `job_id` |
+| `devtray_git_status` | optional `project` | List repositories with branch, upstream, ahead/behind, changes, and in-progress operations |
+| `devtray_git_diff` | `project`; optional `path`, `staged` | Read a unified diff; `path` must be in the current change list |
+| `devtray_git_commit` | `project`, `message`; one of `paths` / `all` | Commit the listed files (re-checked before staging); returns the short hash under `allow` |
+| `devtray_git_push` | `project` | Push the current branch to its upstream; never force |
+| `devtray_git_pull` | `project`; optional `allow_dirty` | Fast-forward only; skips repositories with uncommitted changes unless `allow_dirty` |
 
-MCP writes follow `mcp_writes`: `ask` shows a desktop yad dialog (60 seconds without a response counts as denial), `deny` refuses immediately, and only `allow` skips the dialog. `devtray_clean` only creates a job and returns `job_id` without blocking the connection; poll `devtray_job` until `done` / `error` / `cancelled`. Execution still re-checks running services and mount points, so approval does not guarantee a successful deletion.
+MCP writes follow `mcp_writes`: `ask` shows a desktop yad dialog (60 seconds without a response counts as denial), `deny` refuses immediately, and only `allow` skips the dialog. Under `ask`, `devtray_clean` and the three git write tools only create a job and return `job_id` without blocking the connection; poll `devtray_job` until `done` / `error` / `cancelled`. Under `allow` the git write tools run immediately and return the commit hash, push summary, or pull result. Execution still re-checks running services, mount points, and the change list, so approval does not guarantee success.
 
 Suggested agent workflow: **status → start if needed → wait and recheck readiness → read logs on failure**. A successful start call means the process was launched, not that compilation or startup has finished. The MCP status response can include `advice` for starting/failed services. The CLI's JSON status response contains `services`; its human-readable output includes advice when needed.
 

@@ -801,7 +801,7 @@ frontmatter 通过 GitHub raw / blob API 读取，只解析首个 `---` 块里�
 - 测试：Rust 62 条全绿；`tests/disk_clean.py` 端到端覆盖 dry-run、证据删除、审计/job、
   符号链接拒绝、git 跟踪拒绝、ops 锁互斥、`_clean` 任务执行；`tests/panel_assets.py`
   覆盖资源页渲染、勾选启用清理按钮、以及"面板 → `_disk-cache` → `_disk-scan`"真实链路。
-  `tests/mcp.py` 覆盖九个工具、磁盘缓存读取、job 缺失与 `mcp_writes=deny`；
+  `tests/mcp.py` 覆盖十四个工具（含 Git 读写的 allow/ask/deny）、磁盘缓存读取、job 缺失与 `mcp_writes=deny`；
   `_approve` 的 allow / deny / yad 缺失（fail closed）在 `tests/disk_clean.py` 中验证。
   `tests/agents_skills.py` 覆盖 Agent 版本/来源与 Skills lock 对账、未纳管、副本漂移；
   `tests/skills_check.py` 用假 `gh` 覆盖 tree sha 对比、available/current、6h 缓存与

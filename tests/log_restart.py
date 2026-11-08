@@ -30,6 +30,8 @@ with tempfile.TemporaryDirectory(prefix='devtray-regression-') as tmp:
         assert all(e['level']=='warn' for e in data['entries'])
         run('stop','logger')
         assert 'keep-me' in run('logs','logger','--history','--level','warn')
+        digest = run('logs','logger','--digest')
+        assert '扫描' in digest and 'failure' in digest and '[错误]' in digest, digest
         print('PASS: first output, restart archives, level filtering, logs after stop')
     finally:
         subprocess.run(['tmux','kill-server'],env=env,capture_output=True)

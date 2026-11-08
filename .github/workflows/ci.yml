@@ -74,3 +74,38 @@ jobs:
           name: devtray-linux-x86_64
           path: dist/*
           if-no-files-found: error
+
+  desktop-probe:
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            label: macos-arm64-cli
+          - os: windows-2025
+            label: windows-x64-panel
+    name: probe / ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.os == 'macOS'
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustc +1.97.1 -vV
+          cargo +1.97.1 check --locked --all-targets --target aarch64-apple-darwin
+      - if: runner.os == 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pip install -r packaging/desktop/requirements-win.lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/desktop_panel_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

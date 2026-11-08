@@ -1631,6 +1631,13 @@ class Panel(ResourcePanelMixin, GitPanelMixin, ServiceAlertsMixin, ShortcutSetti
             QTimer.singleShot(0, self.refresh)
 
 
+def instance_identity():
+    # Preserve the existing socket name on Unix; Windows has no getuid().
+    if hasattr(os, 'getuid'):
+        return str(os.getuid())
+    return os.environ.get('USERDOMAIN', '') + '\\' + os.environ.get('USERNAME', '')
+
+
 def main():
     app = QApplication(sys.argv[:1])
     app.setApplicationName('devtray')
@@ -1638,7 +1645,7 @@ def main():
     app.setWindowIcon(QIcon.fromTheme('devtray', QIcon.fromTheme('utilities-terminal')))
     app.setQuitOnLastWindowClosed(False)
     binary, config, *options = sys.argv[1:]
-    key = hashlib.sha256((str(os.getuid()) + ':' + str(Path(config).resolve())).encode()).hexdigest()[:24]
+    key = hashlib.sha256((instance_identity() + ':' + str(Path(config).resolve())).encode()).hexdigest()[:24]
     name = 'devtray-panel-' + key
     target = options[options.index('--target') + 1] if '--target' in options else None
     mode = options[options.index('--mode') + 1] if '--mode' in options else ('small' if '--menu' in options else None)

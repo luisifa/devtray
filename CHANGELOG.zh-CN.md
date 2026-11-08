@@ -1,5 +1,17 @@
 # 更新日志
 
+## 未发布
+
+### 日志分诊
+- 新增 `devtray logs --digest` 与 MCP `devtray_logs { digest: true }`：确定性分诊，把几百行日志压成若干条问题，每条带错误码、`文件:行:列`、出现次数和最多两条样例。
+- 保留一行「运行结束上下文」（`The system will reboot now!`、`^C [ELIFECYCLE] ...`），并把请求端点（`path=/api/auth/login`、vite 代理路径）提进问题条目，避免把关机和接口报错误判成代码缺陷。
+- 识别 Rust 编译错误、panic、端口占用、Python traceback、JavaScript/Bun 报错和包管理器失败（`[ELIFECYCLE]`、`npm ERR!`），其余回退到日志级别分类；摘要会剥掉 tracing 的 span 前缀；重复项按去掉数字、时间戳与 ULID/UUID/哈希后的内容合并，按出现次数排序，最多展示八类，其余只报数量。默认扫描最后 300 行，全程不调用模型。
+
+### Git 接入 MCP
+- 新增 `devtray_git_status`、`devtray_git_diff`、`devtray_git_commit`、`devtray_git_push`、`devtray_git_pull`，复用 Git 页与 `devtray git` 的同一套受控函数。
+- 写操作按 `mcp_writes` 执行：`deny` 直接拒绝；`allow` 立即执行并返回提交哈希／推送摘要／拉取结果；`ask` 创建任务、在桌面弹 yad 确认（60 秒超时视为拒绝，`yad` 缺失按拒绝处理），结果通过 `devtray_job` 查询。
+- 提交只接受当前变更列表里的文件并在暂存前重新读取状态；推送不做 force；拉取只做 `--ff-only`，默认跳过有未提交改动的仓库（可用 `allow_dirty` 放开）。
+
 ## 0.2.0 - 2026-11-04
 
 ### 交互修复

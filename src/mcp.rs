@@ -88,15 +88,16 @@ fn tools() -> Value {
             },
             {
                 "name": "devtray_logs",
-                "description": "读取某个服务的日志尾部。编译错误、panic、端口占用都会在这里；服务已停止或崩溃也照样能读（日志落盘保留下来的）。",
+                "description": "读取某个服务的日志尾部。编译错误、panic、端口占用都会在这里；服务已停止或崩溃也照样能读（日志落盘保留下来的）。digest=true 时返回压缩分诊（错误类型/代码、文件:行、次数、各 1-2 条样例），默认扫描最后 300 行；排查时先看 digest，定位不了再读原文。",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "target": target,
-                        "lines": { "type": "integer", "description": "返回最后多少行，默认 80", "minimum": 1, "maximum": 5000 },
+                        "lines": { "type": "integer", "description": "返回最后多少行，默认 80（digest 默认 300）", "minimum": 1, "maximum": 5000 },
                         "level": { "type": "string", "description": "逗号分隔级别：error,warn,info,debug,trace,other" },
                         "search": { "type": "string", "description": "不区分大小写的内容搜索" },
-                        "history": { "type": "boolean", "description": "包含跨重启和大小轮转的历史日志" }
+                        "history": { "type": "boolean", "description": "包含跨重启和大小轮转的历史日志" },
+                        "digest": { "type": "boolean", "description": "返回确定性分诊摘要而不是原始日志" }
                     },
                     "required": ["target"],
                     "additionalProperties": false
@@ -178,6 +179,69 @@ fn tools() -> Value {
                     "required": ["project"],
                     "additionalProperties": false
                 }
+            },
+            {
+                "name": "devtray_git_status",
+                "description": "列出 devtray 项目对应的 Git 仓库：分支、上游、领先/落后、变更文件、是否在变基/合并、最近提交请在面板查看。只读。commit / push / pull 前应先调它确认项目名和变更列表。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": { "type": "string", "description": "可选，项目名；省略返回所有项目" }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_git_diff",
+                "description": "读取某个项目（可选单个文件）的 unified diff。只读。path 必须出现在 devtray_git_status 的 changes 里；未跟踪文件返回文件内容。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": { "type": "string", "description": "项目名" },
+                        "path": { "type": "string", "description": "可选，仓库内相对路径" },
+                        "staged": { "type": "boolean", "description": "看暂存区而不是工作区，默认 false" }
+                    },
+                    "required": ["project"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_git_commit",
+                "description": "提交指定文件（或 all=true 提交全部变更）。写操作：受 mcp_writes 控制——deny 直接拒绝；allow 立刻执行并返回提交哈希；ask 返回 job_id，等用户在桌面确认后用 devtray_job 取结果。只提交 paths 里的文件，执行前会再次核对变更列表。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": { "type": "string", "description": "项目名" },
+                        "message": { "type": "string", "description": "提交信息" },
+                        "paths": { "type": "array", "items": { "type": "string" }, "description": "仓库内相对路径，来自 devtray_git_status 的 changes" },
+                        "all": { "type": "boolean", "description": "暂存全部变更；与 paths 二选一" }
+                    },
+                    "required": ["project", "message"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_git_push",
+                "description": "推送当前分支到它的上游。写操作，受 mcp_writes 控制。不做 force；没有上游分支时会报错并提示先执行 git push -u。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "project": { "type": "string", "description": "项目名" } },
+                    "required": ["project"],
+                    "additionalProperties": false
+                }
+            },
+            {
+                "name": "devtray_git_pull",
+                "description": "拉取当前分支（只做 fast-forward，不 merge/rebase）。写操作，受 mcp_writes 控制。默认跳过有未提交改动的仓库；确实要拉时传 allow_dirty=true。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project": { "type": "string", "description": "项目名" },
+                        "allow_dirty": { "type": "boolean", "description": "工作区有未提交改动时仍然拉取，默认 false" }
+                    },
+                    "required": ["project"],
+                    "additionalProperties": false
+                }
             }
         ]
     })
@@ -211,6 +275,8 @@ fn run_tool(name: &str, args: &Value) -> Result<String, String> {
         "devtray_disk" => return disk_tool(args),
         "devtray_job" => return job_tool(args),
         "devtray_clean" => return clean_tool(args),
+        "devtray_git_status" | "devtray_git_diff" | "devtray_git_commit" | "devtray_git_push"
+        | "devtray_git_pull" => return git_tool(name, args),
         _ => {}
     }
 
@@ -236,12 +302,14 @@ fn run_tool(name: &str, args: &Value) -> Result<String, String> {
 
     match name {
         "devtray_logs" => {
+            let digest = args.get("digest").and_then(Value::as_bool).unwrap_or(false);
             let lines = args
                 .get("lines")
                 .and_then(Value::as_u64)
-                .unwrap_or(80)
+                .unwrap_or(if digest { 300 } else { 80 })
                 .clamp(1, 5000) as usize;
-            if args.get("level").is_none()
+            if !digest
+                && args.get("level").is_none()
                 && args.get("search").is_none()
                 && args.get("history").is_none()
             {
@@ -271,6 +339,17 @@ fn run_tool(name: &str, args: &Value) -> Result<String, String> {
                     ..Default::default()
                 },
             )?;
+            if digest {
+                let lines: Vec<String> = result.entries.into_iter().map(|e| e.text).collect();
+                let report = crate::digest::analyze(&lines);
+                let state = ctx
+                    .statuses()
+                    .iter()
+                    .find(|s| s.session == t.session)
+                    .map(|s| s.state.text());
+                let subject = format!("{}/{}", t.project, t.service.name);
+                return Ok(crate::digest::render(&report, &subject, state.as_deref()));
+            }
             serde_json::to_string(&result).map_err(|e| e.to_string())
         }
         "devtray_open_preview" => cli::open_preview(t),
@@ -294,6 +373,86 @@ fn config_file() -> std::path::PathBuf {
     std::env::var("DEVTRAY_CONFIG")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| crate::config::default_config_path())
+}
+
+/// Git 工具：读操作直通仓库；写操作一律经 `git::submit` 走 `mcp_writes` 策略。
+fn git_tool(name: &str, args: &Value) -> Result<String, String> {
+    match name {
+        "devtray_git_status" => {
+            let repos = crate::git::repos()?;
+            let project = arg(args, "project");
+            if let Some(project) = project
+                && !repos
+                    .iter()
+                    .any(|r| r.project == project || r.projects.iter().any(|p| p == project))
+            {
+                return Err(format!(
+                    "找不到 Git 项目 {project:?}；可用：{}",
+                    repos
+                        .iter()
+                        .map(|r| r.project.clone())
+                        .collect::<Vec<_>>()
+                        .join("、")
+                ));
+            }
+            let picked: Vec<_> = repos
+                .iter()
+                .filter(|r| {
+                    project.is_none_or(|want| {
+                        r.project == want || r.projects.iter().any(|p| p == want)
+                    })
+                })
+                .collect();
+            pretty(json!({ "repos": picked }))
+        }
+        "devtray_git_diff" => {
+            let project = arg(args, "project").ok_or("缺少 project")?;
+            let repo = crate::git::checkout(project)?;
+            let result = crate::git::diff_at(
+                std::path::Path::new(&repo.root),
+                arg(args, "path"),
+                args.get("staged").and_then(Value::as_bool).unwrap_or(false),
+            )?;
+            pretty(serde_json::to_value(result).map_err(|e| e.to_string())?)
+        }
+        "devtray_git_commit" => {
+            let project = arg(args, "project").ok_or("缺少 project")?;
+            let message = arg(args, "message").ok_or("缺少 message")?;
+            let paths = string_array(args, "paths")?;
+            let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
+            if paths.is_empty() && !all {
+                return Err("需要 paths（来自 devtray_git_status 的 changes）或 all=true".into());
+            }
+            if !paths.is_empty() && all {
+                return Err("paths 与 all 不能同时使用".into());
+            }
+            let value = crate::git::submit(
+                "commit",
+                json!({ "project": project, "message": message, "paths": paths, "all": all }),
+            )?;
+            pretty(value)
+        }
+        "devtray_git_push" => {
+            let project = arg(args, "project").ok_or("缺少 project")?;
+            pretty(crate::git::submit("push", json!({ "project": project }))?)
+        }
+        "devtray_git_pull" => {
+            let project = arg(args, "project").ok_or("缺少 project")?;
+            let allow_dirty = args
+                .get("allow_dirty")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            pretty(crate::git::submit(
+                "pull",
+                json!({ "project": project, "allow_dirty": allow_dirty }),
+            )?)
+        }
+        other => Err(format!("未知工具：{other}")),
+    }
+}
+
+fn pretty(value: Value) -> Result<String, String> {
+    serde_json::to_string_pretty(&value).map_err(|e| e.to_string())
 }
 
 fn string_array(args: &Value, key: &str) -> Result<Vec<String>, String> {
